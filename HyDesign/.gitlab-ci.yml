@@ -1,0 +1,91 @@
+image: dtuwindenergy/hydesign:0.0.12
+
+# ===== TEST hydesign linux=====
+test_hydesign:
+  stage: 
+    test
+  script:
+  - pip install .[all]
+  - python -m pytest
+  tags:
+  - linux
+
+# ===== TEST hydesign windows=====
+test_hydesign_windows:
+  image: registry.windenergy.dtu.dk/topfarm/hydesign:0.0.3
+  stage:
+    test
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  script:
+  - conda init powershell
+  - "if (test-path $PROFILE.CurrentUserAllHosts) { & $PROFILE.CurrentUserAllHosts}"
+  - conda activate py311
+  - pip install -e .[all]
+  - pytest --cov-report term-missing:skip-covered --cov=hydesign --cov-config .coveragerc
+  tags:
+  - docker-windows
+
+# ===== DEPLOY hydesign docs=====
+pages:
+  stage:  
+    deploy
+  script:  
+  - pip install --upgrade pip ipython ipykernel
+#  - pip install pypandoc
+#  - pip install sphinx --upgrade
+#  - pip install nbsphinx --upgrade
+#  - pip install nbconvert --upgrade
+#  - pip install sphinx_rtd_theme
+  - ipython kernel install --name "python3" --user
+  - pip install .[all] --upgrade
+  - cd docs; make html
+  - cd ../; mv docs/build/html public/
+  artifacts:
+    paths:
+    - public
+  only: 
+  - /^test_docdeploy.*/ 
+  - main
+  tags: 
+  - linux
+
+# ===== DEPLOY publish hydesign on pypi=====
+# pypi:
+#   stage:
+#     deploy
+#   only:
+#     - tags
+#     - test_pypi
+#   script:
+#     - apt-get update
+#     - apt-get install -y pandoc
+#     - pip install --upgrade pip
+#     - pip install pypandoc
+#     - pip install . --upgrade
+#     - python -c 'from git_utils import get_tag; get_tag(verbose=True)'
+#     - python -m pip install -U setuptools wheel
+#     - python setup.py sdist bdist_wheel
+#     - python -m pip install -U twine
+#     - python -c 'from git_utils import rename_dist_file; rename_dist_file()'
+#     - twine upload dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
+#     #- twine upload --repository-url https://test.pypi.org/legacy/ dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD # for testing purposes
+#   tags:
+#   - linux
+
+
+pypi_linux:
+  stage:
+    deploy
+  only:
+    - tags
+    - test_pypi
+  script:
+    - apt-get update
+    - pip install --upgrade pip
+    - pip install -e .[all] --upgrade
+    - pip install --upgrade build
+    - pip install --upgrade twine packaging
+    - python3 -m build
+    - twine upload dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
+  tags:
+  - linux

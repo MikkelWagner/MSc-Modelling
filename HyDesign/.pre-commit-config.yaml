@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        files: ^(hydesign)/
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.0.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--filter-files"]
+        files: ^(hydesign)/
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+        # Documentation builds do not execute notebooks (see docs/conf.py), so
+        # plot-bearing tutorials must keep their reviewed outputs.
+        exclude: ^docs/notebooks/(Hybridize|Coupled_HPP_and_wind_farm_operation_including_emissions_displacement)\.ipynb$
+        args:
+          [
+            "--extra-keys=metadata.kernelspec metadata.language_info.version",
+          ]
+        files: ^docs/notebooks/.*\.ipynb$

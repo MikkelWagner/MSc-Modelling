@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# VS Code
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated results
+/results/
+
+# Private/confidential data
+/data/private/
+
+# Temporary files
+*.tmp
+*.log
+
+# Environment variables / credentials
+.env
+*.key
+
+# Windows
+Thumbs.db

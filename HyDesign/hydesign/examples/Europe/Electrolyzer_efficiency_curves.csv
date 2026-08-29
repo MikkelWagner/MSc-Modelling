@@ -1,0 +1,13 @@
+,Alkaline electrolyzer,Unnamed: 1,PEM electrolyzer,Unnamed: 3,PEM electrolyzer efficiency,Unnamed: 5,PEM electrolyzer H2 production,Unnamed: 9,Alkaline electrolyzer efficiency,Unnamed: 7,Alkaline electrolyzer H2 production,Unnamed: 9
+0,P_ptg,Efficiency,P_ptg,Efficiency,P_ptg,Efficiency,P_ptg,H2,P_ptg,Efficiency,P_ptg,H2
+1,0,0,0,0,0.04,0,0.04,0,0.1,0,0.1,0
+2,0.1,0.372,0.1,0.65,0.0401,0.05,0.0401,0.051017812,0.101,0.01,0.101,0.022926209
+3,0.2,0.39,0.2,0.7,0.18,0.7,0.18,3.20610687,0.3,0.398,0.3,3.038167939
+4,0.3,0.398,0.3,0.69,1,0.58,1,14.75826972,1,0.352,1,8.956743003
+5,0.4,0.391,0.4,0.68,1.0001,0,1.0001,0,1.0001,0,1.0001,0
+6,0.5,0.385,0.5,0.67,,,,,,,,
+7,0.6,0.379,0.6,0.65,,,,,,,,
+8,0.7,0.37,0.7,0.63,,,,,,,,
+9,0.8,0.364,0.8,0.61,,,,,,,,
+10,0.9,0.358,0.9,0.59,,,,,,,,
+11,1,0.352,1,0.58,,,,,,,,

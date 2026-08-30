@@ -69,11 +69,11 @@ def main():
                 #   'value': 7
                 #   },
                 "solar_MW [MW]":
-                # {'var_type':'design',
-                #   'limits':[0, 400],
-                #   'types':'int'
-                #   },
-                {"var_type": "fixed", "value": 200},
+                {'var_type':'design',
+                  'limits':[0, 400],
+                  'types':'int'
+                  },
+                # {"var_type": "fixed", "value": 200},
                 "surface_tilt [deg]":
                 # {'var_type':'design',
                 #   'limits':[0, 50],

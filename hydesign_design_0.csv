@@ -1,0 +1,55 @@
+,France_good_wind
+clearance [m],60.0
+sp [W/m2],341.0
+p_rated [MW],3.0
+Nwt,190.0
+wind_MW_per_km2 [MW/km2],6.010109198720163
+solar_MW [MW],0.0
+surface_tilt [deg],25.0
+surface_azimuth [deg],180.0
+DC_AC_ratio,1.0
+b_P [MW],50.0
+b_E_h [h],6.0
+cost_of_battery_P_fluct_in_peak_price_ratio,10.0
+name,France_good_wind
+longitude,-0.864258
+latitude,48.744116
+altitude,302.0
+NPV_over_CAPEX,0.5028959396741246
+NPV [MEuro],317.6403346476688
+IRR,0.09919643529180466
+LCOE [Euro/MWh],43.37594308668118
+Revenues [MEuro],53.18028246669828
+CAPEX [MEuro],631.6223886267584
+OPEX [MEuro],8.66658371258712
+Wind CAPEX [MEuro],526.6406333538315
+Wind OPEX [MEuro],8.66658371258712
+PV CAPEX [MEuro],0.0
+PV OPEX [MEuro],0.0
+Batt CAPEX [MEuro],25.547693197846133
+Batt OPEX [MEuro],0.0
+Shared CAPEX [MEuro],79.43406207508076
+Shared OPEX [MEuro],0.0
+penalty lifetime [MEuro],0.0
+Mean Annual Electricity Sold [GWh],1309.0884492544458
+GUF,0.49813106897048925
+grid [MW],300.0
+wind [MW],570.0
+solar [MW],0.0
+Battery Energy [MWh],300.0
+Battery Power [MW],50.0
+Total curtailment [GWh],9977.986871985424
+Total curtailment with deg [GWh],7328.61357982985
+Awpp [km2],94.84020691693588
+Apvp [km2],0.0
+Plant area [km2],94.84020691693588
+Rotor diam [m],105.83723787695766
+Hub height [m],112.91861893847883
+Number of batteries used in lifetime,2.0
+Break-even PPA price [Euro/MWh],28.180704327239606
+Capacity factor wind [-],0.32110218410609964
+AEP [GWh],1832.8193982557038
+AEP with degradation [GWh],1603.3274256785771
+design obj,NPV_over_CAPEX
+opt time [min],9.38
+n_model_evals,32

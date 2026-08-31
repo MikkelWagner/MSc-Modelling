@@ -1,6 +1,6 @@
 # MSc Modelling
 
-Modelling repository for MSc thesis.
+Modelling repository for an MSc thesis project focused on hybrid energy system design and optimization. This repository contains model implementations, simulation scripts, and analysis notebooks built on the HyDesign framework.
 
 ## Structure
 
@@ -13,10 +13,12 @@ Modelling repository for MSc thesis.
 
 ## HyDesign baseline
 
-This project is based on HyDesign developed by DTU Wind and Energy Systems.
+This project is based on HyDesign, an open-source framework developed by DTU Wind and Energy Systems for optimizing hybrid power plant designs combining multiple renewable energy technologies.
 
-Original repository:
+**Original repository:**
 https://gitlab.windenergy.dtu.dk/TOPFARM/hydesign
 
-git -C .\HyDesign rev-parse HEAD
+**HyDesign version used in this project:**
+```
 882b7ae0b8fa493b2244f3e6f83819de806d9114
+```

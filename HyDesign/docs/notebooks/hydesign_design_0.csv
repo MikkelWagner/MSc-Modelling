@@ -1,0 +1,53 @@
+,Denmark_good_wind
+clearance [m],35.0
+sp [W/m2],300.0
+p_rated [MW],1.0
+Nwt,3.0
+wind_MW_per_km2 [MW/km2],7.0
+solar_MW [MW],36.0
+surface_tilt [deg],25.0
+surface_azimuth [deg],180.0
+DC_AC_ratio,1.6
+b_P [MW],53.0
+b_E_h [h],6.999999999999999
+cost_of_battery_P_fluct_in_peak_price_ratio,0.0
+name,Denmark_good_wind
+longitude,8.594398
+latitude,56.227322
+altitude,85.0
+NPV_over_CAPEX,0.009996888615241195
+NPV [MEuro],0.3626855255425726
+IRR,0.06631881994646305
+LCOE [Euro/MWh],59.127539018058066
+CAPEX [MEuro],36.2798406085694
+OPEX [MEuro],0.2987465746596484
+Wind CAPEX [MEuro],2.896532608569395
+Wind OPEX [MEuro],0.03954657465964834
+PV CAPEX [MEuro],12.816
+PV OPEX [MEuro],0.2592
+Batt CAPEX [MEuro],18.7355
+Batt OPEX [MEuro],0.0
+Shared CAPEX [MEuro],1.831808
+Shared OPEX [MEuro],0.0
+penalty lifetime [MEuro],2.88
+Mean Annual Electricity Sold [GWh],55.565160000000006
+GUF,0.6343054794520548
+grid [MW],10.0
+wind [MW],3.0
+solar [MW],36.0
+Battery Energy [MWh],370.99999999999994
+Battery Power [MW],53.0
+Total curtailment [GWh],67.38397471106812
+Awpp [km2],0.42857142857142855
+Apvp [km2],0.44136
+Plant area [km2],0.44136
+Rotor diam [m],65.147001587056
+Hub height [m],67.573500793528
+Number of batteries used in lifetime,1.0
+Break-even PPA price [Euro/MWh],38.89216428838575
+Capacity factor wind [-],0.24614897396250304
+AEP [GWh],59.43405947313253
+AEP with degradation [GWh],59.43405947313253
+design obj,NPV_over_CAPEX
+opt time [min],4.21
+n_model_evals,52

@@ -1,0 +1,9 @@
+[run]
+omit = 
+	hydesign/tests/*
+	hydesign/examples/*
+	hydesign/look_up_tables/*
+	hydesign/nrelcsm/*
+	hydesign/assembly/hpp_pywake_gnn_loads.py
+[report]
+fail_under = 60

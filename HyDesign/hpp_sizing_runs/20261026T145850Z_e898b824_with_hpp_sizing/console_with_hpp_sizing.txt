@@ -1,0 +1,86 @@
+
+
+
+
+Sizing a HPP plant at Denmark_good_solar:
+
+
+Fixed parameters on the site
+-------------------------------
+longitude = 11.813965
+latitude = 55.39776
+altitude = 42.0
+
+
+
+Initial 6 simulations took 0.28 minutes
+  Current solution -hpp_sizing_score [MEUR/year] = 2.227E+01
+  Current No. model evals: 6
+
+Update sm and extract candidate points took 0.1 minutes
+Check-optimal candidates: new 4 simulations took 0.22 minutes
+  Current solution -hpp_sizing_score [MEUR/year] = 2.227E+01
+  Current No. model evals: 9
+  rel_yopt_change = -0.00E+00
+Iteration 1 took 0.33 minutes
+
+Update sm and extract candidate points took 0.1 minutes
+Check-optimal candidates: new 4 simulations took 0.2 minutes
+  Current solution -hpp_sizing_score [MEUR/year] = 2.227E+01
+  Current No. model evals: 12
+  rel_yopt_change = -0.00E+00
+Iteration 2 took 0.31 minutes
+
+
+Design:
+---------------
+clearance [m]: 35.000
+sp [W/m2]: 300.000
+p_rated [MW]: 5.000
+Nwt: 36.000
+wind_MW_per_km2 [MW/km2]: 7.000
+solar_MW [MW AC]: 180.000
+surface_tilt [deg]: 42.000
+surface_azimuth [deg]: 180.000
+DC_AC_ratio: 1.250
+b_P [MW]: 25.000
+b_E_h [h]: 8.000
+
+
+LOLH [h]: 59.000
+firm_reliability [-]: 0.993
+EENS [MWh]: 607.607
+it_capacity_mw [MW_IT]: 13.913
+served_it_energy_mwh [MWh_IT/year]: 121349.907
+Revenue_dc [EUR/year]: 485399629.516
+CAPEX_dc_facility [EUR]: 133565217.391
+CAPEX_dc_it [EUR]: 213286956.522
+CAPEX_dc_total [EUR]: 346852173.913
+OPEX_dc [EUR/year]: 3478260.870
+annualized_CAPEX_dc_facility [EUR/year]: 13101704.900
+annualized_CAPEX_dc_it [EUR/year]: 52717010.416
+annualized_CAPEX_dc_total [EUR/year]: 65818715.316
+annualized_cost_dc [EUR/year]: 69296976.186
+CAPEX_w [EUR]: 166806531.912
+OPEX_w [EUR/year]: 3072375.108
+CAPEX_s [EUR]: 50850000.000
+OPEX_s [EUR/year]: 1012500.000
+CAPEX_b [EUR]: 14856250.000
+OPEX_b [EUR/year]: 0.000
+annualized_CAPEX_wind [EUR/year]: 13048727.568
+annualized_cost_wind [EUR/year]: 16121102.676
+annualized_CAPEX_pv [EUR/year]: 3977828.621
+annualized_cost_pv [EUR/year]: 4990328.621
+annualized_CAPEX_battery [EUR/year]: 1162155.682
+annualized_cost_battery [EUR/year]: 1162155.682
+CAPEX_hpp [EUR]: 232512781.912
+OPEX_hpp [EUR/year]: 4084875.108
+annualized_CAPEX_hpp [EUR/year]: 18188711.871
+annualized_cost_hpp [EUR/year]: 22273586.979
+net_annual_value [EUR/year]: 416102653.330
+net_annual_value_dc_only [EUR/year]: 416102653.330
+net_annual_value_system [EUR/year]: 393829066.351
+hpp_sizing_score [MEUR/year]: -22.274
+
+Optimization with 2 iterations and 12 model evaluations took 0.99 minutes
+

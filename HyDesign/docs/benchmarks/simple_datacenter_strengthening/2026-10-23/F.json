@@ -1,0 +1,32 @@
+{
+  "variant": "F",
+  "options": {
+    "tighten_load_upper_bound": true,
+    "aggregate_shortage": true,
+    "hourly_strengthening": true,
+    "incumbent_objective_eur": 413046614.91
+  },
+  "time_limit_seconds": 60,
+  "construction_and_bound_seconds": 10.282852299977094,
+  "continuous_variables": 52562,
+  "binary_variables": 8760,
+  "constraints": 43804,
+  "fixed_failure_binaries": 4945,
+  "big_m_mw": 17.30101910648664,
+  "effective_lower_mw": 15.802227415905127,
+  "explicit_mip_starts": 0,
+  "root_lp_status": "optimal",
+  "root_lp_seconds": 0.9219999999622814,
+  "root_lp_eur": 423915385.976623,
+  "first_incumbent_seconds": null,
+  "root_bound_after_cuts_eur": 423915385.97662336,
+  "time_to_5pct": null,
+  "time_to_2pct": null,
+  "time_to_1pct": null,
+  "error": "RuntimeError(\"CPLEX maximum_net_annual_value solver error: Did not reach optimality: {'stage': 'maximum_net_annual_value', 'status': 'time limit exceeded, no integer solution', 'status_code': 108, 'seconds': 60.06299999996554}\")",
+  "validation_passed": false,
+  "wall_seconds": 75.19843749998836,
+  "presolved_binaries": 3815,
+  "dynamic_search_logged": true,
+  "mip_start_log_present": false
+}

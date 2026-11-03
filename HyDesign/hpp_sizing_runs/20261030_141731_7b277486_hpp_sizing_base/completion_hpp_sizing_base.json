@@ -1,0 +1,4 @@
+{
+  "status": "NATIVE_ERROR",
+  "error": "PermissionError: [WinError 5] Access is denied"
+}

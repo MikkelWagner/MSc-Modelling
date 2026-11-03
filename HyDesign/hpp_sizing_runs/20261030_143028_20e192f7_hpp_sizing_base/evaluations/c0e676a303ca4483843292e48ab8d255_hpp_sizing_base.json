@@ -1,0 +1,54 @@
+{
+  "design": [
+    35.0,
+    300.0,
+    5.0,
+    16.0,
+    7.0,
+    180.0,
+    42.0,
+    180.0,
+    1.25,
+    25.0,
+    8.0
+  ],
+  "status": "FEASIBLE",
+  "annualized_cost_hpp": 13317280.293480515,
+  "started_at": 1793367059.9538944,
+  "pid": 23896,
+  "error": null,
+  "score_meur_per_year": -13.317280293480515,
+  "solver": [
+    {
+      "status_code": 101,
+      "status": "integer optimal solution",
+      "seconds": 2.610000000000582,
+      "has_solution": true
+    }
+  ],
+  "seconds": 6.383174500002497,
+  "completed_at": 1793367066.3397481,
+  "validation": {
+    "metrics": {
+      "LOLH": 28.0,
+      "firm_reliability": 0.9968036529680365,
+      "EENS": 73.89380224491286,
+      "successful_hours": 8732.0,
+      "total_hours": 8760.0,
+      "epsilon_mw": 0.001,
+      "full_load_factor": 0.9968036529680365,
+      "longest_shortage_hours": 11.0
+    },
+    "max_failed_hours": 87,
+    "physical_residuals": {
+      "renewable_balance_mw": 2.842170943040401e-14,
+      "power_balance_mw": 1.4210854715202004e-14,
+      "demand_balance_mw": 1.7763568394002505e-15,
+      "it_balance_mw": 1.7763568394002505e-15,
+      "served_pue_mw": 0.0,
+      "unserved_pue_mw": 0.0,
+      "demand_pue_mw": 0.0,
+      "soc_transition_mwh": 2.248201624865942e-13
+    }
+  }
+}

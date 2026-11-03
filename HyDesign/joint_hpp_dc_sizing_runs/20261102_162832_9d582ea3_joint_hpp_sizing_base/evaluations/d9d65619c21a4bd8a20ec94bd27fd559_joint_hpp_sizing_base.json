@@ -1,0 +1,21 @@
+{
+  "design": [
+    35.0,
+    300.0,
+    5.0,
+    42.0,
+    7.0,
+    188.13207770709613,
+    42.0,
+    180.0,
+    1.25,
+    28.763453003296373,
+    9.73699255280442,
+    11.844747139579727
+  ],
+  "status": "TIME_LIMIT_INTERRUPTED",
+  "started_at": 1793633364.863033,
+  "pid": 12760,
+  "annualized_cost_hpp": null,
+  "error": "Evaluation interrupted: TIME_LIMIT"
+}

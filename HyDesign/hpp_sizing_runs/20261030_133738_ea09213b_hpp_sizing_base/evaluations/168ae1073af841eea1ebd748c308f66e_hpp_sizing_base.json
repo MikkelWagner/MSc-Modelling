@@ -1,0 +1,28 @@
+{
+  "design": [
+    35.0,
+    300.0,
+    5.0,
+    201.0,
+    7.0,
+    331.9960510663762,
+    42.0,
+    180.0,
+    1.25,
+    90.80694515130784,
+    20.965923136517553
+  ],
+  "status": "FEASIBLE",
+  "error": null,
+  "score_meur_per_year": -109.03258747831839,
+  "annualized_cost_hpp": 109032587.4783184,
+  "solver": [
+    {
+      "status_code": 101,
+      "status": "integer optimal solution",
+      "seconds": 6.79700000000048,
+      "has_solution": true
+    }
+  ],
+  "seconds": 11.460234600001058
+}

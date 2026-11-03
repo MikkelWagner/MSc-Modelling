@@ -1,0 +1,53 @@
+,Denmark_good_solar
+clearance [m],35.0
+sp [W/m2],300.0
+p_rated [MW],5.0
+Nwt,27.0
+wind_MW_per_km2 [MW/km2],7.0
+solar_MW [MW AC],180.0
+surface_tilt [deg],42.0
+surface_azimuth [deg],180.0
+DC_AC_ratio,1.25
+b_P [MW],25.0
+b_E_h [h],8.0
+name,Denmark_good_solar
+longitude,11.813965
+latitude,55.39776
+altitude,42.0
+LOLH [h],84.0
+firm_reliability [-],0.9904109589041096
+EENS [MWh],858.2734101001175
+it_capacity_mw [MW_IT],13.913043478260871
+served_it_energy_mwh [MWh_IT/year],121131.93616513038
+Revenue_dc [EUR/year],484527744.6605215
+CAPEX_dc_facility [EUR],133565217.39130436
+CAPEX_dc_it [EUR],213286956.52173916
+CAPEX_dc_total [EUR],346852173.9130435
+OPEX_dc [EUR/year],3478260.8695652178
+annualized_CAPEX_dc_facility [EUR/year],13101704.89976183
+annualized_CAPEX_dc_it [EUR/year],52717010.41628414
+annualized_CAPEX_dc_total [EUR/year],65818715.31604597
+annualized_cost_dc [EUR/year],69296976.18561119
+CAPEX_w [EUR],125104898.93413563
+OPEX_w [EUR/year],2304871.7625124506
+CAPEX_s [EUR],50850000.0
+OPEX_s [EUR/year],1012500.0
+CAPEX_b [EUR],14856250.0
+OPEX_b [EUR/year],0.0
+annualized_CAPEX_wind [EUR/year],9786545.675895642
+annualized_cost_wind [EUR/year],12091417.438408094
+annualized_CAPEX_pv [EUR/year],3977828.621094132
+annualized_cost_pv [EUR/year],4990328.621094132
+annualized_CAPEX_battery [EUR/year],1162155.6824410954
+annualized_cost_battery [EUR/year],1162155.6824410954
+CAPEX_hpp [EUR],190811148.93413562
+OPEX_hpp [EUR/year],3317371.7625124506
+annualized_CAPEX_hpp [EUR/year],14926529.97943087
+annualized_cost_hpp [EUR/year],18243901.74194332
+net_annual_value [EUR/year],415230768.4749103
+net_annual_value_dc_only [EUR/year],415230768.4749103
+net_annual_value_system [EUR/year],396986866.732967
+hpp_sizing_score [MEUR/year],-18.24390174194332
+design obj,hpp_sizing_score [MEUR/year]
+opt time [min],0.94
+n_model_evals,12

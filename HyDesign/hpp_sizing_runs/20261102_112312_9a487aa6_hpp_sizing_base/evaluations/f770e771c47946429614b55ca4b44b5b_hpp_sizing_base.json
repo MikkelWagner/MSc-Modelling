@@ -1,0 +1,99 @@
+{
+  "design": [
+    35.0,
+    300.0,
+    5.0,
+    18.0,
+    7.0,
+    65.1368117976528,
+    42.0,
+    180.0,
+    1.25,
+    29.57940192184256,
+    14.232540631118367
+  ],
+  "status": "FEASIBLE",
+  "annualized_cost_hpp": 12135517.60282661,
+  "started_at": 1793616167.913599,
+  "pid": 19616,
+  "error": null,
+  "score_meur_per_year": -12.13551760282661,
+  "solver": [
+    {
+      "status_code": 102,
+      "status": "integer optimal, tolerance",
+      "seconds": 8.25,
+      "has_solution": true
+    }
+  ],
+  "seconds": 14.547353499976452,
+  "completed_at": 1793616182.4608402,
+  "validation": {
+    "metrics": {
+      "LOLH": 81.0,
+      "firm_reliability": 0.9907534246575342,
+      "EENS": 525.8296663546614,
+      "successful_hours": 8679.0,
+      "total_hours": 8760.0,
+      "epsilon_mw": 0.001,
+      "full_load_factor": 0.9907534246575342,
+      "longest_shortage_hours": 11.0
+    },
+    "max_failed_hours": 87,
+    "physical_residuals": {
+      "renewable_balance_mw": 1.4210854715202004e-14,
+      "power_balance_mw": 7.105427357601002e-15,
+      "demand_balance_mw": 0.0,
+      "it_balance_mw": 0.0,
+      "served_pue_mw": 0.0,
+      "unserved_pue_mw": 0.0,
+      "demand_pue_mw": 0.0,
+      "soc_transition_mwh": 1.1013412404281553e-13
+    }
+  },
+  "metrics": {
+    "LOLH": 81.0,
+    "firm_reliability": 0.9907534246575342,
+    "EENS": 525.8296663546614,
+    "successful_hours": 8679.0,
+    "total_hours": 8760.0,
+    "epsilon_mw": 0.001,
+    "full_load_factor": 0.9907534246575342,
+    "longest_shortage_hours": 11.0
+  },
+  "economics": {
+    "CAPEX_dc_facility": 133565217.39130436,
+    "CAPEX_dc_it": 213286956.52173916,
+    "CAPEX_dc_total": 346852173.9130435,
+    "OPEX_dc": 3478260.8695652178,
+    "annualized_CAPEX_dc_facility": 13101704.89976183,
+    "annualized_CAPEX_dc_it": 52717010.41628414,
+    "annualized_CAPEX_dc_total": 65818715.31604597,
+    "annualized_cost_dc": 69296976.18561119,
+    "CAPEX_w": 83403265.95609042,
+    "OPEX_w": 1536131.6084398888,
+    "CAPEX_s": 18401149.332836915,
+    "OPEX_s": 366394.566361797,
+    "CAPEX_b": 29007558.700022936,
+    "OPEX_b": 0.0,
+    "annualized_CAPEX_wind": 6524363.783930428,
+    "annualized_cost_wind": 8060495.392370317,
+    "annualized_CAPEX_pv": 1439461.5236418066,
+    "annualized_cost_pv": 1805856.0900036036,
+    "annualized_CAPEX_battery": 2269166.120452691,
+    "annualized_cost_battery": 2269166.120452691,
+    "CAPEX_hpp": 130811973.98895027,
+    "OPEX_hpp": 1902526.1748016858,
+    "annualized_CAPEX_hpp": 10232991.428024925,
+    "annualized_cost_hpp": 12135517.60282661,
+    "facility_load_mw": 16.0,
+    "it_capacity_mw": 13.913043478260871,
+    "served_it_energy_mwh": 121421.01768143076,
+    "served_facility_energy_mwh": 139634.17033364534,
+    "datacenter_firm_revenue_per_mwh_it": 4000,
+    "Revenue_dc": 485684070.725723,
+    "net_annual_value": 416387094.54011184,
+    "net_annual_value_dc_only": 416387094.54011184,
+    "net_annual_value_system": 404251576.93728524
+  }
+}

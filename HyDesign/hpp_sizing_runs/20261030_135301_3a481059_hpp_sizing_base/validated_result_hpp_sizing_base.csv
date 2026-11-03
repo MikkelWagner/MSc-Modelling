@@ -1,0 +1,21 @@
+,0
+Final status,VALIDATED_FEASIBLE_DESIGN
+Wind turbines,71
+Wind capacity [MW],355.0
+PV capacity [MW AC],0.0
+Battery power [MW],76.79191609261308
+Battery duration [h],15.001284926209605
+Battery energy [MWh],1151.9774133348694
+Fixed facility load [MW],16.0
+Reliability target [%],99.0
+Achieved reliability [%],100.0
+Failed hours [h/year],0.0
+EENS [MWh/year],0.0
+HPP CAPEX [EUR],407946954.43188447
+Annualized HPP cost [EUR/year],37952279.73808291
+Native unique model evaluations,17
+Actual optimizer adapter calls,18
+Extra independent validation calls,1
+Optimization runtime [min],3.5131809234619142
+Final validation runtime [min],0.13799578348795574
+CPLEX status,integer optimal solution

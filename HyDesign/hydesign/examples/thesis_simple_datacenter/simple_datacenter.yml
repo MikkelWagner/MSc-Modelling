@@ -1,0 +1,162 @@
+# Shared configuration for all thesis simple-data-center workflows.
+# Each workflow reads only the parameters it needs. Native HyDesign YAMLs are separate.
+# Fixed-load evaluation notebooks explicitly set reliability_target=0 for diagnostics.
+
+# --------------------------------------------------------------------------------------------
+# HPP Global -- one complete hourly weather year; no lifetime dispatch
+# --------------------------------------------------------------------------------------------
+year: 2012
+N_life: 1
+weeks_per_season_per_year: null
+
+# --------------------------------------------------------------------------------------------
+# Wind
+# --------------------------------------------------------------------------------------------
+wpp_efficiency: 1.0
+
+# --------------------------------------------------------------------------------------------
+# PV
+# --------------------------------------------------------------------------------------------
+tracking: 'No'
+land_use_per_solar_MW: 0.01226 # [km2/MW AC]
+
+# --------------------------------------------------------------------------------------------
+# Battery -- same parameter names as the original HyDesign YAML
+# --------------------------------------------------------------------------------------------
+battery_depth_of_discharge: 0.9
+battery_charge_efficiency: 0.9273618495495703 # sqrt(0.86) in each direction
+battery_initial_soc: 0.5 # Terminal SOC also 50%, with every transition connected
+# b_E = b_P * b_E_h is nominal capacity; 200 MWh gives 180 MWh usable.
+# Reference bus limits: charge <= b_P / efficiency; discharge <= b_P * efficiency.
+
+# --------------------------------------------------------------------------------------------
+# EMS and data center -- no external grid or degradation
+# --------------------------------------------------------------------------------------------
+ems_type: cplex
+ems_time_limit_seconds: 600 # Shared dispatch limit; HPP search also caps by remaining outer time
+ems_threads: 4
+# lambda_B: MWh_IT per MW of adjacent AC net battery-power change (hours).
+# Fixed/basic EMS: served IT MWh - lambda_B * sum(abs(diff(discharge-charge))).
+# Economic sizing: net DC EUR - IT revenue rate * lambda_B * fluctuation.
+# Implementation default is zero; the value below is the shared case setting.
+# 0.0001 or 0.001 are optional trade-offs, not degradation costs.
+# A zero IT revenue rate also makes the economic fluctuation penalty zero.
+battery_power_fluctuation_penalty: 0.0001
+facility_load_mw: 16.0
+pue: 1.15
+epsilon_mw: 0.001 # Failure threshold on unserved FACILITY power [MW]
+reliability_target: 0.999 # 99.9% hourly target: at most 8 failed hours / 8760
+ppa_price: 70.0 # Reporting only: EUR per delivered facility MWh; never an EMS objective
+
+# --------------------------------------------------------------------------------------------
+# Data-center load sizing -- HPP capacities stay fixed in the notebook
+# --------------------------------------------------------------------------------------------
+facility_load_min_mw: 1.0
+facility_load_max_mw: 50.0 # Report whether this bound is active
+sizing_time_limit_seconds: 600
+sizing_mip_relative_gap: 0.0001 # 0.01% relative penalized-objective optimality gap
+sizing_allow_time_limit_incumbent: true # Return verified feasible load + gap if time runs out
+
+# --------------------------------------------------------------------------------------------
+# Data-center economics -- aggregate Thijs-based assumptions for the with_dc_cost versions
+# --------------------------------------------------------------------------------------------
+datacenter_facility_capex_per_mw_it: 9_600_000 # [EUR/MW_IT] Aggregate initial facility CAPEX
+datacenter_it_capex_per_mw_it: 15_330_000 # [EUR/MW_IT] Aggregate initial IT/server CAPEX
+datacenter_fixed_opex_per_mw_it_year: 250_000 # [EUR/(MW_IT*year)] Aggregate fixed annual OPEX
+datacenter_facility_lifetime_years: 20 # [years] Facility capital-recovery period, independent of N_life
+datacenter_it_lifetime_years: 5 # [years] IT capital-recovery period represents regular replacement; no event schedule
+datacenter_discount_rate: 0.075 # [-] Annual discount rate as a fraction (7.5%)
+datacenter_firm_revenue_per_mwh_it: 4_000 # [EUR/MWh_IT] Value of actually served firm IT workload, including partial supply
+
+# --------------------------------------------------------------------------------------------
+# HPP economics -- copied from examples/Europe/hpp_pars.yml
+# Native asset costs plus shared BOS and co-located land. No decommissioning.
+#
+# Original HyDesign coefficients; BOS scales with facility_load_mw + rated b_P,
+# without any charging-efficiency correction. This is a simplified electrical
+# infrastructure proxy, not a detailed network design. No public-grid connection.
+# Retain native land_cost * max(Awpp, Apvp), charged as one-time CAPEX.
+hpp_BOS_soft_cost: 119940 # [EUR/MW of shared capacity proxy]
+hpp_grid_connection_cost: 0 # Off-grid: explicit public-grid coefficient excluded
+land_cost: 300000 # [EUR/km2], original HyDesign assumption
+# Wind rates: EUR/MW, EUR/MW/year, EUR/MWh; reference geometry: m, m, MW.
+# PV panel/hardware/OPEX use MW DC; inverter uses MW AC.
+# Battery energy CAPEX: EUR/MWh; power/BOP/control: EUR/MW.
+# Native battery OPEX multiplies energy: coefficient basis EUR/MWh/year.
+# WACCs are fractions, separate from the unchanged 7.5% DC discount rate.
+# --------------------------------------------------------------------------------------------
+wind_turbine_cost: 640000
+wind_civil_works_cost: 260000
+wind_fixed_onm_cost: 12600
+wind_variable_onm_cost: 1.35
+d_ref: 145
+hh_ref: 100
+p_rated_ref: 5.0
+solar_PV_cost: 110000
+solar_hardware_installation_cost: 100000
+solar_inverter_cost: 20000
+solar_fixed_onm_cost: 4500
+battery_energy_cost: 62000
+battery_power_cost: 16000
+battery_BOP_installation_commissioning_cost: 80000
+battery_control_system_cost: 2250
+battery_energy_onm_cost: 0
+wind_WACC: 0.06
+solar_WACC: 0.06
+battery_WACC: 0.06
+
+# Original hpp_pars.yml N_life=25 is adopted as the simplified economic recovery
+# period for wind, PV and battery. N_life above remains 1 for technical operation.
+# One full replacement is charged in year 15 and discounted at battery_WACC
+# before annualization over 25 years. Initial CAPEX_b and CAPEX_hpp exclude it.
+# Economic expenditure only: no degradation, price decline or salvage value.
+hpp_economic_lifetime_years: 25
+battery_replacement_year: 15
+battery_replacement_cost_fraction: 1.0
+
+# --------------------------------------------------------------------------------------------
+# Outer HPP sizing: independent of the per-EMS-solve limit above.
+# Best-effort deadline includes initial constrained feasibility exploration.
+hpp_sizing_time_limit_seconds: 600
+hpp_sizing_max_unique_evaluations: null # Optional equal-evaluation comparison cap, e.g. 216
+hpp_sizing_site: Denmark_good_solar
+hpp_sizing_output_dir: ./hpp_sizing_runs
+optimization_method: feasibility_aware # Or native_ego for the unchanged baseline search
+# Shared sampling, iteration, parallelism and random-seed settings.
+n_procs: 2
+n_doe: 40
+max_iter: 30
+n_clusters: 4
+npred: 10000
+n_seed: 0
+tol: 0.000001
+min_conv_iter: 100
+# n_clusters and min_conv_iter apply only to native_ego.
+# tol also selects stagnation/perturbation when native refinement is enabled.
+# feasibility_aware uses global EI(cost) * P(feasible), with periodic global exploration.
+fa_batch_size: 2
+fa_exploration_interval: 5 # Every fifth adaptive proposal covers an unsampled region
+fa_max_retries: 1 # Additional attempts per unknown design; never retry proven infeasibility
+fa_retry_interval: 5 # Consider acquisition-ranked retries only in every fifth batch
+fa_retry_cooldown_iterations: 3
+fa_cost_theta_bounds: [0.000001, 20.0] # Native KPLSK hyperparameter bounds
+fa_classifier_length_scale: 0.2 # Initial RBF scale in normalized design coordinates
+fa_classifier_optimize: true
+fa_classifier_max_iter: 100
+fa_native_refinement_enabled: false # Preserve the original feasibility-aware baseline
+fa_native_refinement_interval: 5 # Outer iterations; add at most fa_batch_size native candidates
+# Native variable names must match the existing assembly exactly.
+# value is the fixed value OR the initial feasibility-scout value.
+# Only these four capacity variables may switch between fixed and design.
+variables:
+  'clearance [m]': {var_type: fixed, value: 35}
+  'sp [W/m2]': {var_type: fixed, value: 300}
+  'p_rated [MW]': {var_type: fixed, value: 5}
+  Nwt: {var_type: fixed, value: 20, limits: [0, 60], types: int}
+  'wind_MW_per_km2 [MW/km2]': {var_type: fixed, value: 7}
+  'solar_MW [MW AC]': {var_type: fixed, value: 180, limits: [0, 300], types: float}
+  'surface_tilt [deg]': {var_type: fixed, value: 42}
+  'surface_azimuth [deg]': {var_type: fixed, value: 180}
+  DC_AC_ratio: {var_type: fixed, value: 1.25}
+  'b_P [MW]': {var_type: fixed, value: 25, limits: [0, 80], types: float}
+  'b_E_h [h]': {var_type: fixed, value: 8, limits: [1, 24], types: float}

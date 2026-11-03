@@ -1,0 +1,298 @@
+{
+  "termination_reason": "TIME_LIMIT",
+  "optimization_seconds": 60.0,
+  "started_at": 1793634268.49918,
+  "cleanup_seconds": 0.0,
+  "process_cleanup": {
+    "mechanism": "Windows Job Object",
+    "total_processes": 7,
+    "active_processes_after_stop": 0
+  },
+  "returncode": 124,
+  "configuration": {
+    "year": 2012,
+    "N_life": 1,
+    "weeks_per_season_per_year": null,
+    "wpp_efficiency": 1.0,
+    "tracking": "No",
+    "land_use_per_solar_MW": 0.01226,
+    "battery_depth_of_discharge": 0.9,
+    "battery_charge_efficiency": 0.9273618495495703,
+    "battery_initial_soc": 0.5,
+    "ems_type": "cplex",
+    "ems_time_limit_seconds": 600,
+    "ems_threads": 4,
+    "battery_power_fluctuation_penalty": 0.0001,
+    "facility_load_mw": 16.0,
+    "pue": 1.15,
+    "epsilon_mw": 0.001,
+    "reliability_target": 0.99,
+    "ppa_price": 70.0,
+    "facility_load_min_mw": 1.0,
+    "facility_load_max_mw": 50.0,
+    "sizing_time_limit_seconds": 600,
+    "sizing_mip_relative_gap": 0.0001,
+    "sizing_allow_time_limit_incumbent": true,
+    "datacenter_facility_capex_per_mw_it": 9600000,
+    "datacenter_it_capex_per_mw_it": 15330000,
+    "datacenter_fixed_opex_per_mw_it_year": 250000,
+    "datacenter_facility_lifetime_years": 20,
+    "datacenter_it_lifetime_years": 5,
+    "datacenter_discount_rate": 0.075,
+    "datacenter_firm_revenue_per_mwh_it": 4000,
+    "hpp_BOS_soft_cost": 119940,
+    "hpp_grid_connection_cost": 0,
+    "land_cost": 300000,
+    "wind_turbine_cost": 640000,
+    "wind_civil_works_cost": 260000,
+    "wind_fixed_onm_cost": 12600,
+    "wind_variable_onm_cost": 1.35,
+    "d_ref": 145,
+    "hh_ref": 100,
+    "p_rated_ref": 5.0,
+    "solar_PV_cost": 110000,
+    "solar_hardware_installation_cost": 100000,
+    "solar_inverter_cost": 20000,
+    "solar_fixed_onm_cost": 4500,
+    "battery_energy_cost": 62000,
+    "battery_power_cost": 16000,
+    "battery_BOP_installation_commissioning_cost": 80000,
+    "battery_control_system_cost": 2250,
+    "battery_energy_onm_cost": 0,
+    "wind_WACC": 0.06,
+    "solar_WACC": 0.06,
+    "battery_WACC": 0.06,
+    "hpp_economic_lifetime_years": 25,
+    "battery_replacement_year": 15,
+    "battery_replacement_cost_fraction": 1.0,
+    "hpp_sizing_time_limit_seconds": 60,
+    "hpp_sizing_max_unique_evaluations": null,
+    "hpp_sizing_site": "Denmark_good_solar",
+    "hpp_sizing_output_dir": "C:\\Users\\loict\\OneDrive\\Skrivebord\\Master thesis\\MSc Modelling\\HyDesign\\joint_hpp_dc_sizing_runs",
+    "n_procs": 2,
+    "n_doe": 40,
+    "max_iter": 30,
+    "n_clusters": 4,
+    "npred": 10000,
+    "n_seed": 1,
+    "tol": 1e-06,
+    "min_conv_iter": 100,
+    "variables": {
+      "clearance [m]": {
+        "var_type": "fixed",
+        "value": 35
+      },
+      "sp [W/m2]": {
+        "var_type": "fixed",
+        "value": 300
+      },
+      "p_rated [MW]": {
+        "var_type": "fixed",
+        "value": 5
+      },
+      "Nwt": {
+        "var_type": "design",
+        "value": 20,
+        "limits": [
+          0,
+          60
+        ],
+        "types": "int"
+      },
+      "wind_MW_per_km2 [MW/km2]": {
+        "var_type": "fixed",
+        "value": 7
+      },
+      "solar_MW [MW AC]": {
+        "var_type": "design",
+        "value": 180,
+        "limits": [
+          0,
+          300
+        ],
+        "types": "float"
+      },
+      "surface_tilt [deg]": {
+        "var_type": "fixed",
+        "value": 42
+      },
+      "surface_azimuth [deg]": {
+        "var_type": "fixed",
+        "value": 180
+      },
+      "DC_AC_ratio": {
+        "var_type": "fixed",
+        "value": 1.25
+      },
+      "b_P [MW]": {
+        "var_type": "design",
+        "value": 25,
+        "limits": [
+          0,
+          80
+        ],
+        "types": "float"
+      },
+      "b_E_h [h]": {
+        "var_type": "design",
+        "value": 8,
+        "limits": [
+          1,
+          24
+        ],
+        "types": "float"
+      },
+      "it_capacity_mw [MW_IT]": {
+        "var_type": "design",
+        "types": "float",
+        "value": 13.913043478260871,
+        "limits": [
+          0.8695652173913044,
+          43.47826086956522
+        ]
+      }
+    }
+  },
+  "run_directory": "C:\\Users\\loict\\OneDrive\\Skrivebord\\Master thesis\\MSc Modelling\\HyDesign\\joint_hpp_dc_sizing_runs\\20261102_164428_2debe2fd_joint_hpp_sizing_base",
+  "history_path": "C:\\Users\\loict\\OneDrive\\Skrivebord\\Master thesis\\MSc Modelling\\HyDesign\\joint_hpp_dc_sizing_runs\\20261102_164428_2debe2fd_joint_hpp_sizing_base\\history_joint_hpp_sizing_base.csv",
+  "best": {
+    "design": [
+      35.0,
+      300.0,
+      5.0,
+      37.0,
+      7.0,
+      277.36498836538436,
+      42.0,
+      180.0,
+      1.25,
+      58.971932150365774,
+      17.081390074691644,
+      26.411799604127598
+    ],
+    "metrics": {
+      "LOLH": 41.0,
+      "firm_reliability": 0.9953196347031964,
+      "EENS": 189.5003315975356,
+      "successful_hours": 8719.0,
+      "total_hours": 8760.0,
+      "epsilon_mw": 0.001,
+      "full_load_factor": 0.9953196347031964,
+      "longest_shortage_hours": 9.0
+    },
+    "economics": {
+      "CAPEX_dc_facility": 253553276.19962493,
+      "CAPEX_dc_it": 404892887.9312761,
+      "CAPEX_dc_total": 658446164.130901,
+      "OPEX_dc": 6602949.901031899,
+      "annualized_CAPEX_dc_facility": 24871596.557979062,
+      "annualized_CAPEX_dc_it": 100075236.37938401,
+      "annualized_CAPEX_dc_total": 124946832.93736307,
+      "annualized_cost_dc": 131549782.83839497,
+      "CAPEX_w": 171440046.6875192,
+      "OPEX_w": 3157388.2351007126,
+      "CAPEX_s": 78355609.21322109,
+      "OPEX_s": 1560178.0595552872,
+      "CAPEX_b": 68247992.07792956,
+      "OPEX_b": 0.0,
+      "CAPEX_sh": 18644670.901883222,
+      "OPEX_sh": 0.0,
+      "G_proxy_MW": 89.34550169511252,
+      "CAPEX_sh_fixed": 10716099.473311795,
+      "CAPEX_sh_land": 7928571.428571427,
+      "annualized_CAPEX_wind": 13411192.222523658,
+      "annualized_cost_wind": 16568580.45762437,
+      "annualized_CAPEX_pv": 6129502.162273705,
+      "annualized_cost_pv": 7689680.2218289925,
+      "annualized_CAPEX_battery": 7566518.012943139,
+      "annualized_cost_battery": 7566518.012943139,
+      "annualized_CAPEX_shared": 1458511.4168022028,
+      "annualized_cost_shared": 1458511.4168022028,
+      "battery_replacement_cost": 68247992.07792956,
+      "discounted_battery_replacement_cost": 28477502.559475962,
+      "CAPEX_hpp": 336688318.88055307,
+      "OPEX_hpp": 4717566.294656,
+      "annualized_CAPEX_hpp": 28565723.814542707,
+      "annualized_cost_hpp": 33283290.109198708,
+      "facility_load_mw": 30.373569544746736,
+      "it_capacity_mw": 26.411799604127598,
+      "served_it_energy_mwh": 231202.58163511642,
+      "served_facility_energy_mwh": 265882.96888038394,
+      "datacenter_firm_revenue_per_mwh_it": 4000,
+      "Revenue_dc": 924810326.5404657,
+      "net_annual_value": 793260543.7020707,
+      "net_annual_value_dc_only": 793260543.7020707,
+      "net_annual_value_system": 759977253.592872
+    },
+    "solver_status": {
+      "backend": "cplex",
+      "optimal": true,
+      "feasible": true,
+      "stages": [
+        {
+          "stage": "maximum_served_it_energy",
+          "status": "integer optimal solution",
+          "status_code": 101,
+          "seconds": 3.5,
+          "objective": 231201.67319670215,
+          "objective_units": "MWh_IT",
+          "unpenalized_objective": 231202.58163513578,
+          "battery_penalty_equivalent_it_mwh": 0.9084384338083694,
+          "battery_power_fluctuation_mw": 9084.384338083693,
+          "relative_gap": 0.0,
+          "best_bound": 231201.67319670215
+        }
+      ],
+      "primary_served_it_energy_mwh": 231202.58163513578,
+      "battery_power_fluctuation_penalty": 0.0001,
+      "battery_power_fluctuation_mw": 9084.384338083693,
+      "battery_penalty_equivalent_it_mwh": 0.9084384338083694,
+      "mip_relative_gap_tolerance": 0.0001,
+      "max_failed_hours": 87
+    },
+    "validation": {
+      "metrics": {
+        "LOLH": 41.0,
+        "firm_reliability": 0.9953196347031964,
+        "EENS": 189.5003315975356,
+        "successful_hours": 8719.0,
+        "total_hours": 8760.0,
+        "epsilon_mw": 0.001,
+        "full_load_factor": 0.9953196347031964,
+        "longest_shortage_hours": 9.0
+      },
+      "max_failed_hours": 87,
+      "physical_residuals": {
+        "renewable_balance_mw": 2.842170943040401e-14,
+        "power_balance_mw": 5.684341886080802e-14,
+        "demand_balance_mw": 3.552713678800501e-15,
+        "it_balance_mw": 3.552713678800501e-15,
+        "served_pue_mw": 0.0,
+        "unserved_pue_mw": 0.0,
+        "demand_pue_mw": 0.0,
+        "soc_transition_mwh": 5.945022252262788e-12
+      }
+    },
+    "checkpoint_completed_at": 1793634321.2049274
+  },
+  "final_validation_seconds": 8.187000000034459,
+  "validation_errors": [],
+  "error": null,
+  "attempted_evaluations": 13,
+  "evaluated_designs": 11,
+  "unique_designs": 13,
+  "feasible_evaluations": 3,
+  "infeasible_evaluations": 8,
+  "status_counts": {
+    "PROVEN_INFEASIBLE": 8,
+    "FEASIBLE": 3,
+    "TIME_LIMIT_INTERRUPTED": 2
+  },
+  "final_status": "VALIDATED_FEASIBLE_INCUMBENT",
+  "globally_optimal": false,
+  "it_bound_position": "interior",
+  "time_to_best_seconds": 52.70574736595154,
+  "unresolved_evaluations": 2,
+  "time_limited_incumbent": true,
+  "total_seconds": 68.85899999999674
+}

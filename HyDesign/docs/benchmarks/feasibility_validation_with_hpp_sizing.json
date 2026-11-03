@@ -1,0 +1,131 @@
+{
+  "purpose": "short workflow test; not a convergence benchmark",
+  "overrides": {
+    "hpp_sizing_time_limit_seconds": 90,
+    "ems_time_limit_seconds": 5,
+    "n_doe": 6,
+    "max_iter": 2,
+    "npred": 1000,
+    "n_procs": 1,
+    "n_seed": 0,
+    "hpp_sizing_output_dir": "C:\\Users\\loict\\OneDrive\\Skrivebord\\Master thesis\\MSc Modelling\\HyDesign\\hpp_sizing_runs"
+  },
+  "runs": {
+    "native_ego": {
+      "termination_reason": "native_ego_stopped_no_global_optimality_certificate",
+      "error": null,
+      "elapsed_seconds": 78.93799999996554,
+      "evaluated_designs": 12,
+      "unique_designs": 12,
+      "feasible_designs": 10,
+      "run_directory": "C:\\Users\\loict\\OneDrive\\Skrivebord\\Master thesis\\MSc Modelling\\HyDesign\\hpp_sizing_runs\\20261026T145850Z_e898b824_with_hpp_sizing",
+      "search_summary": {},
+      "best_Nwt": 36,
+      "best_cost": 22273586.979429934,
+      "metrics": {
+        "LOLH": 59.0,
+        "firm_reliability": 0.9932648401826484,
+        "EENS": 607.6065142677032,
+        "successful_hours": 8701.0,
+        "total_hours": 8760.0,
+        "epsilon_mw": 0.001,
+        "full_load_factor": 0.9932648401826484,
+        "longest_shortage_hours": 15.0,
+        "delivered_energy_mwh": 139552.3934857323,
+        "curtailment_mwh": 684008.5129218311,
+        "battery_throughput_mwh": 20260.47621725808
+      },
+      "statuses": {
+        "FEASIBLE": 10,
+        "TIME_LIMIT_UNRESOLVED": 1,
+        "PROVEN_INFEASIBLE": 1
+      },
+      "selection_reasons": {
+        "native_ego": 12
+      }
+    },
+    "feasibility_aware": {
+      "termination_reason": "feasibility_aware_iteration_limit",
+      "error": null,
+      "elapsed_seconds": 54.98499999998603,
+      "evaluated_designs": 10,
+      "unique_designs": 10,
+      "feasible_designs": 5,
+      "run_directory": "C:\\Users\\loict\\OneDrive\\Skrivebord\\Master thesis\\MSc Modelling\\HyDesign\\hpp_sizing_runs\\20261026T150009Z_da11ecce_with_hpp_sizing",
+      "search_summary": {
+        "iterations": 2,
+        "surrogate_fit_count": 2,
+        "local_search": false,
+        "training": {
+          "cost_training_count": 5,
+          "feasibility_training_count": 7,
+          "feasible_labels": 5,
+          "infeasible_labels": 2,
+          "fit_count": 2,
+          "warnings": [
+            "Using random_state is deprecated and will raise an error in a future version. Please use seed parameter and pass a np.random.Generator"
+          ]
+        }
+      },
+      "best_Nwt": 36,
+      "best_cost": 22273586.979429934,
+      "metrics": {
+        "LOLH": 59.0,
+        "firm_reliability": 0.9932648401826484,
+        "EENS": 607.6065142677032,
+        "successful_hours": 8701.0,
+        "total_hours": 8760.0,
+        "epsilon_mw": 0.001,
+        "full_load_factor": 0.9932648401826484,
+        "longest_shortage_hours": 15.0,
+        "delivered_energy_mwh": 139552.3934857323,
+        "curtailment_mwh": 684008.5129218311,
+        "battery_throughput_mwh": 20260.47621725808
+      },
+      "statuses": {
+        "FEASIBLE": 5,
+        "PROVEN_INFEASIBLE": 4,
+        "TIME_LIMIT_UNRESOLVED": 1
+      },
+      "selection_reasons": {
+        "initial_doe": 4,
+        "constrained_expected_improvement": 4,
+        "reference_scout": 1,
+        "upper_bound_scout": 1
+      }
+    }
+  },
+  "unchanged_assembly_comparison": {
+    "passed": true,
+    "design": [
+      35.0,
+      300.0,
+      5.0,
+      36,
+      7.0,
+      180.0,
+      42.0,
+      180.0,
+      1.25,
+      25.0,
+      8.0
+    ],
+    "max_hourly_differences": {
+      "wind_mw": 0.0,
+      "pv_mw": 0.0,
+      "renewable_available_mw": 0.0,
+      "facility_load_mw": 0.0,
+      "firm_demand_it_mw": 0.0,
+      "served_facility_mw": 0.0,
+      "unserved_facility_mw": 0.0,
+      "served_firm_it_mw": 0.0,
+      "unserved_firm_it_mw": 0.0,
+      "charge_mw": 0.0,
+      "discharge_mw": 0.0,
+      "curtailment_mw": 0.0,
+      "soc_mwh": 0.0
+    },
+    "economic_fields": 33,
+    "metric_fields": 11
+  }
+}

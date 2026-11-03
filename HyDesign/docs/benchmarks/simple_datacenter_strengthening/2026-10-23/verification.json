@@ -1,0 +1,14 @@
+{
+  "tests_passed": 40,
+  "tests_seconds": 6.881,
+  "command": "python -m unittest hydesign.tests.test_simple_datacenter_strengthened hydesign.tests.test_simple_datacenter_with_dc_cost hydesign.tests.test_simple_datacenter -v",
+  "original_files_unchanged": true,
+  "explicit_primary_mip_starts": 0,
+  "validated_dispatches": 8,
+  "missing_candidate_variants": [
+    "F"
+  ],
+  "maximum_balance_residual": 8.171241461241152e-14,
+  "experimental_source_matches_benchmark": true,
+  "benchmark_reporting_note": "After the measured runs, runner telemetry was extended to retain API bounds on no-incumbent exceptions and report final-only gap crossing limits. No formulation or solver settings changed; original run logs/JSON remain intact."
+}

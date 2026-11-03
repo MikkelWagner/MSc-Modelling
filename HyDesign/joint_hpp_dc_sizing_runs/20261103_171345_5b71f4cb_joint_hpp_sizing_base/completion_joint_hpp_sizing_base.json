@@ -1,0 +1,4 @@
+{
+  "status": "NATIVE_ERROR",
+  "error": "ValueError: Found array with 0 sample(s) (shape=(0, 4)) while a minimum of 1 is required by KMeans."
+}

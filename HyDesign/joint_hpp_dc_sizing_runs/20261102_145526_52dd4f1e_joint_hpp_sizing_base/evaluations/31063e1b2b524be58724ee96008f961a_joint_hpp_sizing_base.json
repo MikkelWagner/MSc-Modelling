@@ -1,0 +1,39 @@
+{
+  "design": [
+    35.0,
+    300.0,
+    5.0,
+    39.0,
+    7.0,
+    227.16860030590783,
+    42.0,
+    180.0,
+    1.25,
+    35.62058575390981,
+    11.312141422717058,
+    34.32031809918536
+  ],
+  "status": "PROVEN_INFEASIBLE",
+  "started_at": 1793627797.4318879,
+  "pid": 24536,
+  "annualized_cost_hpp": null,
+  "error": "RuntimeError: 'ems' <class ems_simple_datacenter_comp>: Error calling compute(), CPLEX maximum_served_it_energy solver error: Did not reach optimality: {'stage': 'maximum_served_it_energy', 'status': 'integer infeasible', 'status_code': 103, 'seconds': 0.03200000000651926}",
+  "score_meur_per_year": -1.0,
+  "score_cost_bound_eur": 263872914.76943082,
+  "it_capacity_mw": 34.32031809918536,
+  "facility_load_mw": 39.468365814063155,
+  "net_annual_value_system": null,
+  "solver": [
+    {
+      "status_code": 103,
+      "status": "integer infeasible",
+      "seconds": 0.03200000000651926,
+      "has_solution": false
+    }
+  ],
+  "validation": null,
+  "metrics": null,
+  "economics": null,
+  "seconds": 4.487306999973953,
+  "completed_at": 1793627801.9193041
+}

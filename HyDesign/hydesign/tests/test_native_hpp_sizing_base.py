@@ -241,6 +241,8 @@ class BaselineTests(unittest.TestCase):
         model.variables = {name: {"var_type": "fixed", "value": value}
                            for name, value in zip(model.list_vars, [1, 2, 3, 4])}
         model.cost_upper_bound = 2e7
+        model.objective = baseline.COST_OBJECTIVE
+        model.objective_scale = 1e6
         model.rejection_score = -20.2
         model.baseline_log_dir = None
         model.economics = {"annualized_cost_hpp": 1e7}
@@ -255,6 +257,173 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(model.candidate_status, "MODEL_ERROR")
         self.assertIn("solver failure", model.candidate_error)
         self.assertIsNone(model.economics)
+
+
+class LcoeFrontierTests(unittest.TestCase):
+    def test_long_nested_checkpoint_paths(self):
+        with scratch_directory() as directory:
+            path = execution._output_path(Path(directory)/('nested_'+'a'*70))
+            path.mkdir()
+            record = path/('b'*32+'_hpp_sizing_base.json')
+            baseline.write_json_atomic(record, {"status":"FEASIBLE"})
+            self.assertEqual(json.loads(record.read_text())["status"], "FEASIBLE")
+            record.unlink()
+            path.rmdir()
+
+    def test_ratio_default_objective_and_invalid_energy(self):
+        economics = {"annualized_cost_hpp": 12e6, "served_facility_energy_mwh": 120000}
+        self.assertEqual(baseline.objective_value(economics, baseline.LCOE_OBJECTIVE), 100)
+        self.assertEqual(baseline.objective_value(economics), 12e6)
+        self.assertEqual(execution.prepare_configuration(CONFIG)["hpp_sizing_objective"], baseline.COST_OBJECTIVE)
+        for energy in (0, -1, np.nan, np.inf):
+            with self.assertRaises(ValueError):
+                baseline.objective_value(dict(economics, served_facility_energy_mwh=energy), baseline.LCOE_OBJECTIVE)
+        with self.assertRaises(ValueError):
+            execution.prepare_configuration(CONFIG, {"hpp_sizing_objective": "typo"})
+
+    def test_lcoe_bound_and_all_reliability_targets(self):
+        cfg = execution.read_configuration(CONFIG)
+        targets = [.4,.5,.6,.7,.8,.9,.95,.97,.99,.999,1.]
+        failures = [5256,4380,3504,2628,1752,876,438,262,87,8,0]
+        for target, failed in zip(targets, failures):
+            cfg["reliability_target"] = target
+            bound = baseline.objective_bound(cfg, 30e6, baseline.LCOE_OBJECTIVE)
+            self.assertAlmostEqual(bound, 30e6/((8760-failed)*(16-.001)))
+            rejection = -(bound+max(1,.01*bound))
+            self.assertLess(rejection, -bound)
+        with self.assertRaises(ValueError):
+            baseline.objective_bound(dict(cfg, reliability_target=0), 30e6, baseline.LCOE_OBJECTIVE)
+
+    @staticmethod
+    def candidate(turbines):
+        model = physical_result()
+        model.sim_pars["reliability_target"] = .7
+        if turbines == 1:
+            for key in ("wind_mw", "renewable_available_mw", "served_facility_mw", "served_firm_it_mw"):
+                model.hourly[key][:1500] = 0
+            model.hourly["unserved_facility_mw"][:1500] = 16
+            model.hourly["unserved_firm_it_mw"][:1500] = 16/1.15
+        model.economics.update(annualized_cost_hpp=1e7 if turbines == 1 else 1.1e7,
+                              served_facility_energy_mwh=float(model.hourly["served_facility_mw"].sum()))
+        return model
+
+    def test_native_ego_evaluation_and_recovery_reverse_cost_ranking(self):
+        from hydesign.Parallel_EGO import model_evaluation
+        designs = [[35,300,5,n,7,180,42,180,1.25,0,8] for n in (1,2)]
+        records = []
+        for design in designs:
+            model = self.candidate(design[3])
+            checks = baseline.validate_result(model, design)
+            records.append(dict(status="FEASIBLE", design=design, validation=checks,
+                                economics=model.economics, annualized_cost_hpp=model.economics["annualized_cost_hpp"],
+                                started_at=1, completed_at=design[3]+1))
+        for objective, expected in ((baseline.COST_OBJECTIVE,1), (baseline.LCOE_OBJECTIVE,2)):
+            scores = []
+            for design in designs:
+                adapter = object.__new__(baseline.hpp_model_simple_datacenter_hpp_sizing_base)
+                adapter.__dict__.update(self.candidate(design[3]).__dict__)
+                adapter.list_vars = list(baseline.VARIABLE_NAMES)
+                adapter.list_out_vars = ["cost", baseline.VALID_NAME, baseline.objective_name(objective)]
+                adapter.variables = {k:dict(var_type="fixed",value=v) for k,v in zip(adapter.list_vars,design)}
+                adapter.objective, adapter.objective_scale = objective, 1 if objective == baseline.LCOE_OBJECTIVE else 1e6
+                adapter.cost_upper_bound = 30e6
+                adapter.objective_upper_bound = baseline.objective_bound(adapter.sim_pars, 30e6, objective)
+                adapter.rejection_score = -(adapter.objective_upper_bound+1)/adapter.objective_scale
+                adapter.baseline_log_dir = None
+                inputs = dict(hpp_model=lambda **kwargs: adapter, scaler=SimpleNamespace(inverse_transform=lambda x:x),
+                              list_vars=adapter.list_vars, design_vars=adapter.list_vars, fixed_vars=[],
+                              variables=adapter.variables, opt_sign=-1, op_var_index=2)
+                with patch.object(baseline.hpp_model_simple_datacenter_with_hpp_cost,"evaluate",return_value=[1]):
+                    scores.append(float(model_evaluation((np.array([design]), inputs))))
+                self.assertEqual(adapter.candidate_status, "FEASIBLE")
+                if objective == baseline.LCOE_OBJECTIVE:
+                    self.assertAlmostEqual(scores[-1], adapter.economics["annualized_cost_hpp"]/adapter.economics["served_facility_energy_mwh"])
+            self.assertEqual(int(np.argmin(scores))+1, expected)
+            model = SimpleNamespace(prob=SimpleNamespace(cleanup=lambda:None))
+            def evaluate(*design):
+                model.__dict__.update(self.candidate(design[3]).__dict__)
+            model.evaluate = evaluate
+            with scratch_directory() as directory, patch(
+                    "hydesign.assembly.hpp_assembly_simple_datacenter_with_hpp_cost.hpp_model_simple_datacenter_with_hpp_cost", return_value=model):
+                best, errors, _ = execution.independently_validate(records, {}, directory, objective)
+                self.assertEqual(best["design"][3], expected)
+                self.assertFalse(errors)
+                execution.write_evaluation_history(records, Path(directory)/"history.csv", 0, 4, objective,.7)
+                import pandas as pd
+                history = pd.read_csv(Path(directory)/"history.csv")
+                self.assertEqual(json.loads(history.iloc[-1]["best_feasible_design"])[3], expected)
+
+    def test_report_handles_dominated_missing_and_duplicate_points_without_optimizer(self):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        with scratch_directory() as directory:
+            directory = Path(directory)
+            cases = [{"reliability_target": t,"folder":str(i)} for i,t in enumerate([.4,.5,.6,.7,1.])]
+            baseline.write_json_atomic(directory/"experiment_config.json", {"cases":cases})
+            for case, reliability, lcoe in zip(cases,[.7,.8,.9,.9],[100,90,110,110]):
+                p = directory/case['folder'];p.mkdir()
+                baseline.write_json_atomic(p/"result.json", {"best":{
+                    "design":[35,300,5,20,7,180,42,180,1.25,25,8], "validation":{},
+                    "economics":{},"metrics":{"firm_reliability":reliability},"lcoe_hpp_eur_per_mwh":lcoe}})
+            snapshot = {p: p.read_bytes() for p in directory.rglob('*.json')}
+            with patch.object(execution, "run_native_hpp_sizing", side_effect=AssertionError("Must not run EGO")):
+                table,fig = execution.load_lcoe_reliability_experiment(directory,save_figures=True)
+            self.assertEqual(table['nondominated'].tolist(),[False,True,True,True,False])
+            self.assertEqual(table.iloc[-1]['feasibility_status'], 'PENDING')
+            self.assertEqual(snapshot, {p:p.read_bytes() for p in snapshot})
+            self.assertEqual(len(list(directory.glob('reports_*/pareto_frontier.pdf'))),1)
+            plt.close(fig)
+
+    def test_experiment_storage_and_new_folder_per_run(self):
+        cfg = execution.read_configuration(CONFIG)
+        cfg.update(facility_load_mw=16,pue=1.15,battery_power_fluctuation_penalty=.0001)
+        for name in baseline.CAPACITY_VARIABLES:
+            cfg['variables'][name]['var_type']='design'
+        def fake_run(path, overrides):
+            target = overrides['reliability_target']
+            self.assertEqual(overrides['hpp_sizing_objective'], baseline.LCOE_OBJECTIVE)
+            if target == 1.:
+                raise RuntimeError('Synthetic unresolved run')
+            model = self.candidate(2)
+            design = [35,300,5,2,7,180,42,180,1.25,0,8]
+            checks = baseline.validate_result(model,design)
+            history = Path(overrides['hpp_sizing_output_dir'])/'native_history.csv'
+            record = dict(status='FEASIBLE',design=design,validation=checks,economics=model.economics,
+                          annualized_cost_hpp=1.1e7,started_at=0,completed_at=1)
+            execution.write_evaluation_history([record],history,0,1,baseline.LCOE_OBJECTIVE,target)
+            return dict(best=dict(design=design,validation=checks,metrics=checks['metrics'],economics=model.economics,
+                                  lcoe_hpp_eur_per_mwh=baseline.objective_value(model.economics,baseline.LCOE_OBJECTIVE)),
+                        history_path=str(history),configuration=overrides,final_status='VALIDATED_FEASIBLE_INCUMBENT',
+                        termination_reason='TIME_LIMIT',optimization_seconds=1)
+        with scratch_directory() as directory, patch.object(execution,'run_native_hpp_sizing',side_effect=fake_run):
+            first = execution.run_lcoe_reliability_experiment(CONFIG,cfg,[.4,.999,1.],directory)
+            snapshot = {p:p.read_bytes() for p in first.rglob('*') if p.is_file()}
+            for name in ('reliability_040','reliability_099p9','reliability_100'):
+                for file in ('result.json','configuration.json','evaluations.csv'):
+                    self.assertTrue((first/name/file).exists())
+            import pandas as pd
+            summary = pd.read_csv(first/'summary.csv')
+            self.assertEqual(len(summary),3)
+            self.assertEqual(summary.iloc[-1]['feasibility_status'],'RUN_ERROR')
+            self.assertTrue(pd.isna(summary.iloc[-1]['lcoe_hpp_eur_per_mwh']))
+            second = execution.run_lcoe_reliability_experiment(CONFIG,cfg,[.7],directory)
+            self.assertNotEqual(first,second)
+            self.assertEqual(snapshot,{p:p.read_bytes() for p in snapshot})
+
+    def test_frontier_notebook_compiles_and_load_mode_is_explicit(self):
+        path = ROOT/'docs/notebooks/simple_datacenter_lcoe_reliability_with_hpp_sizing.ipynb'
+        nb=json.loads(path.read_text(encoding='utf8'))
+        code='\n'.join(''.join(c['source']) for c in nb['cells'] if c['cell_type']=='code')
+        compile(code,str(path),'exec')
+        self.assertLess(len(code.splitlines()),70)
+        self.assertNotIn('def ',code)
+        self.assertIn('if saved_experiment is None:',code)
+        self.assertIn('load_lcoe_reliability_experiment(',code)
+        self.assertIn('0.999, 1.00',code)
+        for cell in nb['cells']:
+            if cell['cell_type']=='code':
+                self.assertEqual(cell['outputs'],[])
 
 
 def run_short_notebook():

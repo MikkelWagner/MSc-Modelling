@@ -8,13 +8,14 @@ separate timings. Windows requires pywin32 (present in hydesign_clean).
 
 from copy import deepcopy
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -39,6 +40,8 @@ HISTORY_COLUMNS = (
     "annualized_cost_shared", "CAPEX_hpp",
     "CAPEX_b", "battery_replacement_cost", "discounted_battery_replacement_cost",
     "annualized_CAPEX_battery", "annualized_cost_battery",
+    "objective", "lcoe_hpp_eur_per_mwh", "served_facility_energy_mwh",
+    "best_feasible_lcoe", "reliability_target", "solver_status",
 )
 
 
@@ -47,13 +50,24 @@ def read_configuration(path):
     return yaml.safe_load(Path(path).read_text(encoding="utf8"))
 
 
+def _output_path(path):
+    """Allow nested experiment checkpoints beyond Windows' legacy 260-character limit."""
+    path = Path(path).resolve()
+    value = str(path)
+    if os.name == "nt" and len(value) > 180 and not value.startswith("\\\\?\\"):
+        value = "\\\\?\\UNC\\" + value[2:] if value.startswith("\\\\") else "\\\\?\\" + value
+    return Path(value)
+
+
 def prepare_configuration(config_path, overrides=None):
     """Resolve YAML plus explicit overrides, without selecting sizing flags for users."""
     from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import (
-        CAPACITY_VARIABLES, VARIABLE_NAMES,
+        CAPACITY_VARIABLES, VARIABLE_NAMES, COST_OBJECTIVE, objective_bound,
     )
     config = read_configuration(config_path)
     config.update(deepcopy(overrides or {}))
+    objective = config.setdefault("hpp_sizing_objective", COST_OBJECTIVE)
+    objective_bound(config, 1.0, objective)  # Validate the objective before spawning workers.
     limit = config.get("hpp_sizing_time_limit_seconds")
     if limit is not None and (isinstance(limit, bool) or not math.isfinite(limit) or limit <= 0):
         raise ValueError("hpp_sizing_time_limit_seconds must be positive, or None to disable")
@@ -200,17 +214,19 @@ def _worker(request_path, gate_path):
         time.sleep(.02)
     from hydesign.Parallel_EGO import EfficientGlobalOptimizationDriver
     from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import (
-        hpp_model_simple_datacenter_hpp_sizing_base, SCORE_NAME, VARIABLE_NAMES, write_json_atomic,
+        hpp_model_simple_datacenter_hpp_sizing_base, VARIABLE_NAMES, write_json_atomic, objective_name,
     )
     request = json.loads(Path(request_path).read_text(encoding="utf8"))
     directory = Path(request["run_directory"])
     config = request["configuration"]
     inputs = dict(request["physical_inputs"], variables=config["variables"], num_batteries=1,
+                  hpp_sizing_objective=config["hpp_sizing_objective"],
                   baseline_log_dir=str(directory / "evaluations"))
     try:
         if any(v["var_type"] == "design" for v in config["variables"].values()):
             inputs.update({k: config[k] for k in NATIVE_SETTINGS})
-            inputs.update(hpp_model=hpp_model_simple_datacenter_hpp_sizing_base, opt_var=SCORE_NAME,
+            inputs.update(hpp_model=hpp_model_simple_datacenter_hpp_sizing_base,
+                          opt_var=objective_name(config["hpp_sizing_objective"]),
                           final_design_fn=str(directory / "native_proposal_hpp_sizing_base.csv"))
             ego = EfficientGlobalOptimizationDriver(**inputs)
             ego.run()
@@ -243,7 +259,8 @@ def read_evaluations(directory, termination_reason):
     return sorted(records, key=lambda r: (r.get("completed_at", float("inf")), r["started_at"]))
 
 
-def write_evaluation_history(records, path, started_at, ended_at):
+def write_evaluation_history(records, path, started_at, ended_at,
+                             objective="minimize_annualized_cost", reliability_target=None):
     """Match the earlier HPP-sizing CSV layout without importing its search code.
 
     Completion order defines the running incumbent. Rejected/interrupted calls
@@ -254,7 +271,8 @@ def write_evaluation_history(records, path, started_at, ended_at):
     path = Path(path)
     temporary = path.with_suffix(".tmp")
     records = sorted(records, key=lambda r: (r.get("completed_at", ended_at), r["started_at"]))
-    best_cost = best_design = None
+    from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import objective_value, LCOE_OBJECTIVE
+    best_cost = best_design = best_value = best_lcoe = None
     with temporary.open("w", newline="", encoding="utf8") as stream:
         writer = csv.DictWriter(stream, fieldnames=HISTORY_COLUMNS)
         writer.writeheader()
@@ -265,8 +283,12 @@ def write_evaluation_history(records, path, started_at, ended_at):
                         and cost is not None and math.isfinite(cost) and cost >= 0)
             economics = (record.get("economics") or {}) if accepted else {}
             metrics = (record.get("metrics") or record["validation"].get("metrics", {})) if accepted else {}
-            if accepted and (best_cost is None or cost < best_cost):
-                best_cost, best_design = cost, design
+            lcoe = (objective_value(economics, LCOE_OBJECTIVE)
+                    if economics.get("served_facility_energy_mwh", 0) > 0 else None)
+            value = lcoe if objective == LCOE_OBJECTIVE else cost
+            accepted = accepted and value is not None and math.isfinite(value)
+            if accepted and (best_value is None or value < best_value):
+                best_value, best_cost, best_design, best_lcoe = value, cost, design, lcoe
             row = {
                 "evaluation_index": index,
                 "elapsed_seconds": record.get("completed_at", ended_at) - started_at,
@@ -274,7 +296,11 @@ def write_evaluation_history(records, path, started_at, ended_at):
                 "Nwt": int(design[3]) if float(design[3]).is_integer() else design[3],
                 "wind_MW": design[3] * design[2], "solar_MW": design[5],
                 "b_P": design[-2], "b_E_h": design[-1], "b_E": design[-2] * design[-1],
-                "score": record.get("score_meur_per_year"),
+                "score": record.get("score", record.get("score_meur_per_year")),
+                "objective": objective, "lcoe_hpp_eur_per_mwh": lcoe,
+                "served_facility_energy_mwh": economics.get("served_facility_energy_mwh"),
+                "best_feasible_lcoe": best_lcoe, "reliability_target": reliability_target,
+                "solver_status": json.dumps(record.get("solver_status")),
                 "annualized_cost_hpp": cost if accepted else None,
                 "EENS": metrics.get("EENS"), "reliability": metrics.get("firm_reliability"),
                 "failed_hours": metrics.get("LOLH"),
@@ -298,18 +324,27 @@ def write_evaluation_history(records, path, started_at, ended_at):
     os.replace(temporary, path)
 
 
-def independently_validate(records, inputs, run_dir):
-    """Try completed feasible candidates in cost order; no additional design search."""
+def independently_validate(records, inputs, run_dir, objective="minimize_annualized_cost"):
+    """Recover in selected-objective order, independently rechecking physics and energy."""
     import numpy as np
     import pandas as pd
     from hydesign.assembly.hpp_assembly_simple_datacenter_with_hpp_cost import hpp_model_simple_datacenter_with_hpp_cost
-    from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import validate_result
+    from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import (
+        validate_result, objective_value, LCOE_OBJECTIVE,
+    )
     eligible = [r for r in records if r["status"] == "FEASIBLE"
                 and r.get("validation") is not None and r.get("annualized_cost_hpp") is not None
                 and math.isfinite(r["annualized_cost_hpp"]) and r["annualized_cost_hpp"] >= 0]
     attempts, seen = [], set()
+    ranked = []
+    for record in eligible:
+        try:
+            economics = record.get("economics") or {"annualized_cost_hpp": record["annualized_cost_hpp"]}
+            ranked.append((objective_value(economics, objective), record))
+        except (KeyError, ValueError, TypeError) as exc:
+            attempts.append({"design": record["design"], "error": str(exc)})
     start = time.monotonic()
-    for record in sorted(eligible, key=lambda r: r["annualized_cost_hpp"]):
+    for expected_objective, record in sorted(ranked, key=lambda item: item[0]):
         design = record["design"]
         if tuple(design) in seen:
             continue
@@ -321,8 +356,17 @@ def independently_validate(records, inputs, run_dir):
             checks = validate_result(model, design)
             np.testing.assert_allclose(model.economics["annualized_cost_hpp"], record["annualized_cost_hpp"],
                                        rtol=1e-9, atol=1e-6)
+            if objective == LCOE_OBJECTIVE:
+                energy = model.economics["served_facility_energy_mwh"]
+                np.testing.assert_allclose(energy, model.hourly["served_facility_mw"].sum(), rtol=1e-10, atol=1e-6)
+                np.testing.assert_allclose(energy, model.sim_pars["facility_load_mw"]*8760 - checks["metrics"]["EENS"],
+                                           rtol=1e-10, atol=1e-5)
+                np.testing.assert_allclose(objective_value(model.economics, objective), expected_objective,
+                                           rtol=1e-6, atol=1e-6)
             best = {"design": design, "metrics": checks["metrics"], "economics": model.economics,
-                    "solver_status": model.solver_status, "validation": checks}
+                    "solver_status": model.solver_status, "validation": checks,
+                    "lcoe_hpp_eur_per_mwh": (objective_value(model.economics, LCOE_OBJECTIVE)
+                        if model.economics.get("served_facility_energy_mwh", 0) > 0 else None)}
             pd.DataFrame(model.hourly).to_csv(Path(run_dir) / "hourly_hpp_sizing_base.csv", index=False)
             np.save(Path(run_dir) / "soc_hpp_sizing_base.npy", model.soc_mwh)
             return best, attempts, time.monotonic() - start
@@ -338,8 +382,8 @@ def run_native_hpp_sizing(config_path, overrides=None):
     """Notebook entry point: configure, supervise native EGO, recover and validate."""
     from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import write_json_atomic
     config = prepare_configuration(config_path, overrides)
-    run_dir = Path(config["hpp_sizing_output_dir"]).resolve() / (
-        datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8] + "_hpp_sizing_base")
+    run_dir = _output_path(Path(config["hpp_sizing_output_dir"]) / (
+        datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8] + "_hpp_sizing_base"))
     (run_dir / "evaluations").mkdir(parents=True)
     inputs = physical_inputs(config_path, config, run_dir)
     native_path = ROOT / "hydesign/Parallel_EGO.py"
@@ -363,9 +407,11 @@ def run_native_hpp_sizing(config_path, overrides=None):
     records = read_evaluations(run_dir / "evaluations", outcome["termination_reason"])
     history_path = run_dir / "history_hpp_sizing_base.csv"
     write_evaluation_history(records, history_path, outcome["started_at"],
-                             outcome["started_at"] + outcome["optimization_seconds"])
+                             outcome["started_at"] + outcome["optimization_seconds"],
+                             config["hpp_sizing_objective"], config["reliability_target"])
     print("Search stopped:", outcome["termination_reason"], "-- independently validating saved candidates.", flush=True)
-    best, validation_errors, validation_seconds = independently_validate(records, inputs, run_dir)
+    best, validation_errors, validation_seconds = independently_validate(
+        records, inputs, run_dir, config["hpp_sizing_objective"])
     result = dict(outcome, configuration=config, run_directory=str(run_dir), history_path=str(history_path),
                   best=best, final_validation_seconds=validation_seconds, validation_errors=validation_errors,
                   error=completion.get("error"), evaluated_designs=sum("completed_at" in r for r in records),
@@ -380,6 +426,167 @@ def run_native_hpp_sizing(config_path, overrides=None):
         raise RuntimeError("Native Parallel_EGO.py changed during the run")
     write_json_atomic(run_dir / "result_hpp_sizing_base.json", result)
     return result
+
+
+def _frontier_row(result, target):
+    """One summary row; a missing/failed run never masquerades as a feasible point."""
+    best = result.get("best") or {}
+    metrics, economics = best.get("metrics", {}), best.get("economics", {})
+    design = best.get("design")
+    valid = bool(best and best.get("validation") is not None)
+    return {
+        "reliability_target": target, "target_reliability_percent": 100*target,
+        "achieved_reliability_percent": 100*metrics["firm_reliability"] if valid else None,
+        "lcoe_hpp_eur_per_mwh": best.get("lcoe_hpp_eur_per_mwh") if valid else None,
+        "annualized_cost_hpp": economics.get("annualized_cost_hpp") if valid else None,
+        "served_facility_energy_mwh": economics.get("served_facility_energy_mwh") if valid else None,
+        "EENS": metrics.get("EENS") if valid else None,
+        "LOLH": metrics.get("LOLH") if valid else None,
+        "Nwt": design[3] if valid else None,
+        "wind_MW": design[2]*design[3] if valid else None,
+        "solar_MW": design[5] if valid else None,
+        "b_P": design[-2] if valid else None,
+        "b_E_h": design[-1] if valid else None,
+        "b_E": design[-2]*design[-1] if valid else None,
+        "optimization_seconds": result.get("optimization_seconds"),
+        "final_validation_seconds": result.get("final_validation_seconds"),
+        "evaluated_designs": result.get("evaluated_designs"),
+        "attempted_evaluations": result.get("attempted_evaluations"),
+        "unique_designs": result.get("unique_designs"),
+        "feasible_evaluations": result.get("feasible_evaluations"),
+        "termination_reason": result.get("termination_reason", "PENDING"),
+        "feasibility_status": result.get("final_status", "PENDING"),
+        "physical_validation_passed": valid,
+        "run_directory": result.get("run_directory"), "error": result.get("error"),
+    }
+
+
+def _frontier_report(experiment_dir, report_dir=None):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    experiment_dir = _output_path(experiment_dir)
+    manifest = json.loads((experiment_dir / "experiment_config.json").read_text(encoding="utf8"))
+    rows = []
+    for case in manifest["cases"]:
+        path = experiment_dir / case["folder"] / "result.json"
+        result = json.loads(path.read_text(encoding="utf8")) if path.exists() else {}
+        rows.append(_frontier_row(result, case["reliability_target"]))
+    table = pd.DataFrame(rows)
+    usable = table[table["physical_validation_passed"] & table["lcoe_hpp_eur_per_mwh"].notna()]
+    table["nondominated"] = False
+    for index, row in usable.iterrows():
+        dominates = ((usable["achieved_reliability_percent"] >= row["achieved_reliability_percent"])
+                     & (usable["lcoe_hpp_eur_per_mwh"] <= row["lcoe_hpp_eur_per_mwh"])
+                     & ((usable["achieved_reliability_percent"] > row["achieved_reliability_percent"])
+                        | (usable["lcoe_hpp_eur_per_mwh"] < row["lcoe_hpp_eur_per_mwh"])))
+        table.loc[index, "nondominated"] = not dominates.any()
+    frontier = table[table["nondominated"]].sort_values("achieved_reliability_percent").drop_duplicates(
+        ["achieved_reliability_percent", "lcoe_hpp_eur_per_mwh"])
+    fig, ax = plt.subplots(figsize=(8, 5), layout="constrained")
+    if not usable.empty:
+        ax.scatter(usable["achieved_reliability_percent"], usable["lcoe_hpp_eur_per_mwh"],
+                   color="0.55", s=45, label="Best validated design per target", zorder=3)
+        ax.plot(frontier["achieved_reliability_percent"], frontier["lcoe_hpp_eur_per_mwh"],
+                "o--", color="#146482", label="Approximate observed Pareto frontier", zorder=4)
+        ax.legend(frameon=False)
+    else:
+        ax.text(.5, .5, "No validated feasible results yet", transform=ax.transAxes, ha="center")
+    ax.set(xlabel="Achieved firm reliability (%)", ylabel="HPP LCoE (EUR/MWh)",
+           title="Fixed 16 MW facility demand", xlim=(0, 100.5))
+    ax.grid(alpha=.2)
+    if report_dir is not None:
+        report_dir = Path(report_dir)
+        temporary = report_dir / "summary.tmp"
+        table.to_csv(temporary, index=False)
+        os.replace(temporary, report_dir / "summary.csv")
+        fig.savefig(report_dir / "pareto_frontier.png", dpi=200)
+        fig.savefig(report_dir / "pareto_frontier.pdf")
+    return table, fig
+
+
+def load_lcoe_reliability_experiment(experiment_dir, save_figures=False):
+    """Rebuild from saved JSON only. Optional exports use a NEW reports folder."""
+    report_dir = None
+    if save_figures:
+        report_dir = _output_path(Path(experiment_dir) / (
+            datetime.now(timezone.utc).strftime("reports_%Y%m%d_%H%M%SZ_") + uuid4().hex[:8]))
+        report_dir.mkdir(exist_ok=False)
+    table, fig = _frontier_report(experiment_dir, report_dir)
+    if report_dir is not None:
+        print("Regenerated reports:", report_dir)
+    return table, fig
+
+
+def run_lcoe_reliability_experiment(config_path, overrides, reliability_targets, output_dir):
+    """Sequential native EGO runs; retain native logs and checkpoints per target.
+
+    Only the active new experiment's summary/figures are updated. Earlier
+    experiments are never reused, overwritten or deleted. All times are UTC.
+    """
+    import matplotlib.pyplot as plt
+    from hydesign.assembly.hpp_assembly_simple_datacenter_hpp_sizing_base import (
+        CAPACITY_VARIABLES, LCOE_OBJECTIVE, objective_bound, write_json_atomic,
+    )
+    config = prepare_configuration(config_path, overrides)
+    config["hpp_sizing_objective"] = LCOE_OBJECTIVE
+    if config["facility_load_mw"] != 16 or config["pue"] != 1.15:
+        raise ValueError("This experiment requires 16 MW facility load and PUE 1.15")
+    if config.get("battery_power_fluctuation_penalty") != .0001:
+        raise ValueError("Keep the experiment's battery fluctuation penalty at 0.0001")
+    if any(config["variables"][name]["var_type"] != "design" for name in CAPACITY_VARIABLES):
+        raise ValueError("Activate all four HPP capacity variables for the frontier")
+    cases = []
+    for target in reliability_targets:
+        target = float(target)
+        objective_bound(dict(config, reliability_target=target), 1., LCOE_OBJECTIVE)
+        label = f"{100*target:07.3f}".rstrip("0").rstrip(".").replace(".", "p")
+        cases.append({"reliability_target": target, "folder": "reliability_" + label})
+    if not cases or len({c["folder"] for c in cases}) != len(cases):
+        raise ValueError("Provide nonempty distinct targets (at least 0.001 percentage point apart)")
+    directory = _output_path(Path(output_dir) / (
+        datetime.now(timezone.utc).strftime("experiment_%Y%m%d_%H%M%SZ_") + uuid4().hex[:8]))
+    directory.mkdir(parents=True, exist_ok=False)
+    physical = physical_inputs(config_path, config, directory)
+    manifest = {"configuration": config, "cases": cases, "config_path": str(Path(config_path).resolve()),
+                "physical_inputs": physical, "timestamp_timezone": "UTC",
+                "native_ego_sha256": hashlib.sha256((ROOT / "hydesign/Parallel_EGO.py").read_bytes()).hexdigest(),
+                "weather_sha256": hashlib.sha256(Path(physical["input_ts_fn"]).read_bytes()).hexdigest()}
+    write_json_atomic(directory / "experiment_config.json", manifest)
+    _, fig = _frontier_report(directory, directory)
+    plt.close(fig)
+    print("LCoE experiment:", directory, flush=True)
+    for case in cases:
+        target = case["reliability_target"]
+        case_dir = _output_path(directory / case["folder"])
+        case_dir.mkdir(exist_ok=False)
+        effective = deepcopy(config)
+        effective.update(reliability_target=target, hpp_sizing_output_dir=str(case_dir))
+        # Record the exact resolved weather/location as well as all economic/search assumptions.
+        resolved = physical_inputs(config_path, effective, case_dir)
+        effective.update({k: resolved[k] for k in ("input_ts_fn", "latitude", "longitude", "altitude")})
+        write_json_atomic(case_dir / "configuration.json", effective)
+        try:
+            result = run_native_hpp_sizing(config_path, overrides=effective)
+        except KeyboardInterrupt:
+            result = {"best": None, "final_status": "INTERRUPTED", "termination_reason": "USER_INTERRUPTED"}
+        except Exception as exc:
+            result = {"best": None, "final_status": "RUN_ERROR", "termination_reason": "ERROR",
+                      "error": f"{type(exc).__name__}: {exc}"}
+        result.setdefault("configuration", effective)
+        result.update(_frontier_row(result, target))
+        write_json_atomic(case_dir / "result.json", result)
+        if result.get("history_path"):
+            shutil.copyfile(result["history_path"], case_dir / "evaluations.csv")
+        else:
+            with (case_dir / "evaluations.csv").open("w", newline="", encoding="utf8") as stream:
+                csv.writer(stream).writerow(HISTORY_COLUMNS)
+        _, fig = _frontier_report(directory, directory)
+        plt.close(fig)
+        print(f"Target {100*target:g}%: {result['feasibility_status']}; "
+              f"LCoE={result['lcoe_hpp_eur_per_mwh']}", flush=True)
+        if result["termination_reason"] == "USER_INTERRUPTED":
+            break
+    return directory
 
 
 if __name__ == "__main__":

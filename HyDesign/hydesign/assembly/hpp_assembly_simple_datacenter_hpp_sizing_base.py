@@ -26,6 +26,9 @@ from hydesign.wind.wind import get_rotor_d
 
 
 SCORE_NAME = "hpp_sizing_score [MEUR/year]"
+LCOE_SCORE_NAME = "hpp_sizing_lcoe_score [EUR/MWh]"
+COST_OBJECTIVE = "minimize_annualized_cost"
+LCOE_OBJECTIVE = "minimize_lcoe"
 VALID_NAME = "dispatch_validated [-]"
 CAPACITY_VARIABLES = ("Nwt", "solar_MW [MW AC]", "b_P [MW]", "b_E_h [h]")
 VARIABLE_NAMES = (
@@ -33,6 +36,42 @@ VARIABLE_NAMES = (
     "wind_MW_per_km2 [MW/km2]", "solar_MW [MW AC]", "surface_tilt [deg]",
     "surface_azimuth [deg]", "DC_AC_ratio", "b_P [MW]", "b_E_h [h]",
 )
+
+
+def objective_name(objective=COST_OBJECTIVE):
+    if objective not in (COST_OBJECTIVE, LCOE_OBJECTIVE):
+        raise ValueError("hpp_sizing_objective must be minimize_annualized_cost or minimize_lcoe")
+    return LCOE_SCORE_NAME if objective == LCOE_OBJECTIVE else SCORE_NAME
+
+
+def objective_value(economics, objective=COST_OBJECTIVE):
+    """Unscaled physical objective: EUR/year or EUR per delivered facility MWh."""
+    objective_name(objective)
+    cost = float(economics["annualized_cost_hpp"])
+    if not np.isfinite(cost) or cost < 0:
+        raise ValueError("Annual HPP cost must be finite and nonnegative")
+    if objective == COST_OBJECTIVE:
+        return cost
+    energy = float(economics["served_facility_energy_mwh"])
+    if not np.isfinite(energy) or energy <= 0:
+        raise ValueError("LCoE requires positive finite served facility energy")
+    value = cost / energy
+    if not np.isfinite(value):
+        raise ValueError("Nonfinite HPP LCoE")
+    return value
+
+
+def objective_bound(config, cost_bound, objective=COST_OBJECTIVE):
+    """Convert the existing cost bound using the hourly service guarantee."""
+    objective_name(objective)
+    if objective == COST_OBJECTIVE:
+        return cost_bound
+    target, load, epsilon = (float(config[k]) for k in
+                             ("reliability_target", "facility_load_mw", "epsilon_mw"))
+    if not np.isfinite([target, load, epsilon]).all() or not 0 < target <= 1 or not 0 <= epsilon < load:
+        raise ValueError("LCoE sizing requires 0 < reliability_target <= 1 and load > epsilon >= 0")
+    failed = int(np.floor((1 - target) * 8760 + 1e-9))
+    return cost_bound / ((8760 - failed) * (load - epsilon))
 
 
 def write_json_atomic(path, value):
@@ -152,7 +191,7 @@ def rejected_status(observations):
 
 
 class hpp_model_simple_datacenter_hpp_sizing_base(hpp_model_simple_datacenter_with_hpp_cost):
-    """Native model interface: maximize -annual_cost/1e6, reject failed evaluations.
+    """Maximize -annual_cost/1e6 (default) or -LCoE; reject failed evaluations.
 
     A process-local Model observer records CPLEX details, including failed solves.
     It changes no parameters or equations, and restores the EMS binding on exit.
@@ -160,7 +199,10 @@ class hpp_model_simple_datacenter_hpp_sizing_base(hpp_model_simple_datacenter_wi
     concurrent threads in one process. Parallel EGO itself is never patched.
     """
 
-    def __init__(self, sim_pars_fn, variables, baseline_log_dir=None, **kwargs):
+    def __init__(self, sim_pars_fn, variables, baseline_log_dir=None,
+                 hpp_sizing_objective=COST_OBJECTIVE, **kwargs):
+        self.objective = hpp_sizing_objective
+        score_name = objective_name(self.objective)
         super().__init__(sim_pars_fn=sim_pars_fn, **kwargs)
         if set(variables) != set(self.list_vars):
             raise ValueError("Variable names must match the physical model's list_vars")
@@ -181,8 +223,10 @@ class hpp_model_simple_datacenter_hpp_sizing_base(hpp_model_simple_datacenter_wi
                 raise ValueError(f"Invalid fixed value: {name}")
         self.variables = variables
         self.cost_upper_bound = annual_cost_bound(self.sim_pars, variables)
-        self.rejection_score = -(self.cost_upper_bound + max(1.0, .01 * self.cost_upper_bound)) / 1e6
-        self.list_out_vars += [VALID_NAME, SCORE_NAME]
+        self.objective_upper_bound = objective_bound(self.sim_pars, self.cost_upper_bound, self.objective)
+        self.objective_scale = 1.0 if self.objective == LCOE_OBJECTIVE else 1e6
+        self.rejection_score = -(self.objective_upper_bound + max(1.0, .01 * self.objective_upper_bound)) / self.objective_scale
+        self.list_out_vars += [VALID_NAME, score_name]
         self.baseline_log_dir = None if baseline_log_dir is None else Path(baseline_log_dir)
         self.candidate_status = None
         self.candidate_error = None
@@ -235,8 +279,14 @@ class hpp_model_simple_datacenter_hpp_sizing_base(hpp_model_simple_datacenter_wi
             cost = self.economics["annualized_cost_hpp"]
             if cost > self.cost_upper_bound + 1e-6 or not np.isfinite(outputs).all():
                 raise ValueError("Nonfinite outputs or HPP cost exceeds the configured bound")
+            value = objective_value(self.economics, self.objective)
+            if self.objective == LCOE_OBJECTIVE:
+                np.testing.assert_allclose(self.economics["served_facility_energy_mwh"],
+                                           self.hourly["served_facility_mw"].sum(), rtol=1e-10, atol=1e-6)
+                if value > self.objective_upper_bound + 1e-6:
+                    raise ValueError("LCoE exceeds the configured objective bound")
             self.candidate_status = "FEASIBLE"
-            self.outputs = np.append(outputs, [1.0, -cost / 1e6])
+            self.outputs = np.append(outputs, [1.0, -value / self.objective_scale])
         except Exception as exc:
             self.candidate_status = rejected_status(self.solve_observations)
             self.candidate_error = f"{type(exc).__name__}: {exc}"
@@ -250,13 +300,18 @@ class hpp_model_simple_datacenter_hpp_sizing_base(hpp_model_simple_datacenter_wi
         if record_path is not None:
             record.update({
                 "design": design, "status": self.candidate_status, "error": self.candidate_error,
-                "score_meur_per_year": float(self.outputs[-1]),
+                "score_meur_per_year": float(self.outputs[-1]) if self.objective == COST_OBJECTIVE else None,
+                "score": float(self.outputs[-1]), "objective": self.objective,
+                "objective_units": "EUR/MWh" if self.objective == LCOE_OBJECTIVE else "EUR/year",
+                "lcoe_hpp_eur_per_mwh": (objective_value(self.economics, LCOE_OBJECTIVE)
+                    if self.economics is not None and self.economics.get("served_facility_energy_mwh", 0) > 0 else None),
                 "annualized_cost_hpp": None if self.economics is None else self.economics["annualized_cost_hpp"],
                 "solver": self.solve_observations, "seconds": time.perf_counter() - start,
                 "completed_at": time.time(),
                 "validation": self.final_checks,
                 "metrics": None if self.final_checks is None else self.final_checks["metrics"],
                 "economics": self.economics,
+                "solver_status": self.solver_status,
             })
             # Each worker owns one record. Rename replaces RUNNING atomically.
             write_json_atomic(record_path, record)

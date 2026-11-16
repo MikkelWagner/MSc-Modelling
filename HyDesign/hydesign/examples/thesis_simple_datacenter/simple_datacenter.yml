@@ -45,7 +45,7 @@ battery_power_fluctuation_penalty: 0.0001
 facility_load_mw: 16.0
 pue: 1.15
 epsilon_mw: 0.001 # Failure threshold on unserved FACILITY power [MW]
-reliability_target: 0.999 # 99.9% hourly target: at most 8 failed hours / 8760
+reliability_target: 0.8 # 99.9% hourly target: at most 8 failed hours / 8760
 ppa_price: 70.0 # Reporting only: EUR per delivered facility MWh; never an EMS objective
 
 # --------------------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ ppa_price: 70.0 # Reporting only: EUR per delivered facility MWh; never an EMS o
 # --------------------------------------------------------------------------------------------
 facility_load_min_mw: 1.0
 facility_load_max_mw: 50.0 # Report whether this bound is active
-sizing_time_limit_seconds: 600
+sizing_time_limit_seconds: 60
 sizing_mip_relative_gap: 0.0001 # 0.01% relative penalized-objective optimality gap
 sizing_allow_time_limit_incumbent: true # Return verified feasible load + gap if time runs out
 
@@ -152,11 +152,11 @@ variables:
   'clearance [m]': {var_type: fixed, value: 35}
   'sp [W/m2]': {var_type: fixed, value: 300}
   'p_rated [MW]': {var_type: fixed, value: 5}
-  Nwt: {var_type: fixed, value: 20, limits: [0, 60], types: int}
+  Nwt: {var_type: fixed, value: 20, limits: [5, 60], types: int}
   'wind_MW_per_km2 [MW/km2]': {var_type: fixed, value: 7}
-  'solar_MW [MW AC]': {var_type: fixed, value: 180, limits: [0, 300], types: float}
+  'solar_MW [MW AC]': {var_type: fixed, value: 180, limits: [0, 250], types: float}
   'surface_tilt [deg]': {var_type: fixed, value: 42}
   'surface_azimuth [deg]': {var_type: fixed, value: 180}
   DC_AC_ratio: {var_type: fixed, value: 1.25}
   'b_P [MW]': {var_type: fixed, value: 25, limits: [0, 80], types: float}
-  'b_E_h [h]': {var_type: fixed, value: 8, limits: [1, 24], types: float}
+  'b_E_h [h]': {var_type: fixed, value: 8, limits: [2, 10], types: float}

@@ -1,6 +1,6 @@
 """Joint capacity adapter: unchanged maximum-reliability EMS and asset economics.
 
-The actual EGO output is J = annual system value - rational penalty, EUR/year.
+The actual EGO output is J = selected economic objective - rational penalty.
 Native EGO maximizes this custom output by training its surrogate on -J.
 Economic bounds and penalty calibration are fixed over the complete domain.
 """
@@ -29,6 +29,87 @@ from hydesign.ems import ems_simple_datacenter_max_reliability as dc_ems
 
 VARIABLE_NAMES = (*HPP_VARIABLE_NAMES, IT_NAME)
 SCORE_NAME = 'penalized_annual_value [EUR/year]'
+ANNUAL_OBJECTIVE = 'net_annual_value_system'
+NPV_OBJECTIVE = 'NPV_system'
+RATIO_OBJECTIVE = 'NPV_over_PV_CAPEX_system'
+OBJECTIVES = {ANNUAL_OBJECTIVE: (SCORE_NAME, 'EUR/year'),
+              NPV_OBJECTIVE: ('penalized_NPV_system [EUR]', 'EUR'),
+              RATIO_OBJECTIVE: ('penalized_NPV_over_PV_CAPEX_system [-]', '-')}
+
+
+def selected_objective(config):
+    # Saved pre-Phase-3 configurations have no selector and retain annual value.
+    name = config.get('joint_sizing_objective', ANNUAL_OBJECTIVE)
+    if name not in OBJECTIVES:
+        raise ValueError(f'Unknown joint_sizing_objective: {name}; choose {tuple(OBJECTIVES)}')
+    return name
+
+
+def economic_objective(economics, objective):
+    if objective == RATIO_OBJECTIVE:
+        capex = economics.get('CAPEX_PV_system')
+        if capex is None or not np.isfinite(capex) or capex <= 0:
+            raise ValueError('The ratio objective requires finite, strictly positive discounted lifetime CAPEX')
+        value = economics['NPV_system'] / capex
+        np.testing.assert_allclose(value, economics[objective], rtol=1e-10, atol=1e-12)
+    else:
+        value = economics[objective]
+    if value is None or not np.isfinite(value):
+        raise ValueError(f'Nonfinite economic objective: {objective}')
+    return float(value)
+
+
+def lifetime_bounds(config, variables):
+    """Reuse native costs and finance schedules at domain endpoints.
+
+    Fixed geometry and nonnegative cost coefficients give monotone capital
+    costs. Nameplate wind supplies a conservative variable-OPEX upper bound.
+    Tax <= tax_rate * revenue, so the NPV interval also covers loss-making cases.
+    """
+    from hydesign.finance.finance_simple_datacenter import (
+        FINANCE_PARAMETERS, INPUT_NAMES, OUTPUT_NAMES, reconstruct_costs, finance_simple_datacenter)
+    component = finance_simple_datacenter(**{k:config[k] for k in FINANCE_PARAMETERS})
+    endpoint = []
+    for index in (0, 1):
+        d = [v['limits'][index] if v['var_type']=='design' else v['value']
+             for v in (variables[k] for k in VARIABLE_NAMES)]
+        wind = np.full(8760, d[2]*d[3]*max(1.,config['wpp_efficiency']) if index else 0.)
+        raw = reconstruct_costs(config,d,wind)
+        raw.update(served_it_energy_mwh=d[-1]*8760,
+                   datacenter_firm_revenue_per_mwh_it=config['datacenter_firm_revenue_per_mwh_it'])
+        endpoint.append(dict(zip(OUTPUT_NAMES,component.compute(**{k:raw[k] for k in INPUT_NAMES}))))
+    lo,hi = endpoint
+    discount = (1+component.discount_rate)**hi['finance_years']
+    reference_revenue = float(np.sum(hi['Revenue_dc_vec']/discount))
+    costs_pv = float(hi['CAPEX_PV_system']+np.sum(hi['OPEX_system_vec']/discount))
+    factor = config.get('joint_economic_bound_factor',1.)
+    lower = -factor*(costs_pv+component.tax_rate*reference_revenue)
+    upper = factor*(reference_revenue+np.sum(hi['residual_value_vec']/discount))
+    capex_min,capex_max = lo['CAPEX_PV_system'],hi['CAPEX_PV_system']
+    reference_capex = config.get('joint_reference_pv_capex_eur')
+    if reference_capex is None: reference_capex = capex_max
+    if (isinstance(reference_capex,bool) or not np.isfinite(reference_capex) or reference_capex<=0
+            or not np.isfinite([lower,upper,capex_min,capex_max,reference_revenue]).all()):
+        raise ValueError('Require finite lifetime bounds and a positive reference discounted CAPEX')
+    mode = selected_objective(config)
+    if mode == RATIO_OBJECTIVE and capex_min <= 0:
+        raise ValueError('Ratio sizing requires a strictly positive lower-domain discounted CAPEX; check cost inputs and minimum capacities')
+    penalty = config.get('joint_penalty_gamma',JOINT_DEFAULTS['joint_penalty_gamma']) * reference_revenue / config.get('joint_penalty_A',JOINT_DEFAULTS['joint_penalty_A'])
+    if not np.isfinite(penalty) or penalty<=0:
+        raise ValueError('Lifetime penalty scaling requires positive reference IT revenue')
+    result = dict(joint_sizing_objective=mode, objective_units=OBJECTIVES[mode][1],
+        reference_revenue_pv_eur=reference_revenue, reference_capex_pv_eur=float(reference_capex),
+        capex_pv_lower_bound_eur=float(capex_min), capex_pv_upper_bound_eur=float(capex_max),
+        npv_lower_bound_eur=float(lower), npv_upper_bound_eur=float(upper),
+        objective_lower_bound=float(lower/capex_min if mode==RATIO_OBJECTIVE else lower),
+        objective_upper_bound=float(upper/capex_min if mode==RATIO_OBJECTIVE else upper),
+        npv_penalty_scale_eur=float(penalty),
+        objective_penalty_scale=float(penalty/reference_capex if mode==RATIO_OBJECTIVE else penalty),
+        financial_penalty_scaling='reference_revenue_pv',
+        reference_capex_method='upper_design_bounds' if config.get('joint_reference_pv_capex_eur') is None else 'configured')
+    if not all(np.isfinite(v) for v in result.values() if isinstance(v,(int,float))):
+        raise ValueError('Nonfinite lifetime objective or penalty scale')
+    return result
 JOINT_DEFAULTS = dict(joint_penalty_mode='rational', joint_penalty_A=2.,
     joint_penalty_lambda=3., joint_penalty_epsilon=1e-4,
     joint_economic_bound_factor=1., joint_value_scale_factor=1.,
@@ -89,16 +170,24 @@ def economic_bounds(config, variables):
         penalty_scale = params['joint_penalty_gamma']*reference/params['joint_penalty_A']
         if not np.isfinite(penalty_scale) or penalty_scale <= 0:
             raise ValueError('reference_revenue scaling requires positive finite potential DC revenue and penalty scale')
-    return dict(cost_upper_bound_eur_per_year=costs, revenue_upper_bound_eur_per_year=revenue,
+    result = dict(cost_upper_bound_eur_per_year=costs, revenue_upper_bound_eur_per_year=revenue,
         hpp_cost_upper_bound_eur_per_year=factor*hpp, dc_cost_upper_bound_eur_per_year=factor*dc,
         value_lower_bound_eur_per_year=-costs, value_upper_bound_eur_per_year=revenue,
         value_scale_eur_per_year=scale, maximum_it_capacity_mw=maximum_it,
         maximum_facility_load_mw=maximum_it*pue,
         reference_revenue_eur_per_year=reference, penalty_scale_eur_per_year=penalty_scale, **params)
+    if selected_objective(config) != ANNUAL_OBJECTIVE:
+        result.update(lifetime_bounds(config,variables))
+    return result
 
 
 def objective_values(economics, lolh, reliability_target, bounds):
-    """Return the actual annual objective consumed by EGO, with separate diagnostics."""
+    """Return the selected EGO objective and its penalty in matching units.
+
+    The explicitly annual fields remain legacy comparison diagnostics. Generic
+    unpenalized_objective, reliability_penalty and penalized_objective identify
+    the actual selected objective; neither search penalty enters finance.
+    """
     if not np.isfinite(reliability_target) or not 0 < reliability_target <= 1:
         raise ValueError('Reliability target must be in (0, 1]')
     if not np.isfinite(lolh) or int(lolh) != lolh or not 0 <= lolh <= 8760:
@@ -121,17 +210,35 @@ def objective_values(economics, lolh, reliability_target, bounds):
     objective = value-penalty
     if not np.isfinite([penalty,objective]).all():
         raise ValueError('Nonfinite rational objective')
-    return dict(net_annual_value_system=value, reliability_penalty_eur_per_year=penalty,
+    result = dict(net_annual_value_system=value, reliability_penalty_eur_per_year=penalty,
         penalized_annual_value=objective, ego_objective_score=objective,
         ego_minimization_target=-objective, max_failed_hours=allowed, excess_failed_hours=excess,
         normalized_annual_value=(value+bounds['cost_upper_bound_eur_per_year'])/
             (bounds['revenue_upper_bound_eur_per_year']+bounds['cost_upper_bound_eur_per_year']),
         normalized_reliability_penalty=rational_penalty(excess,bounds))
+    mode = selected_objective(bounds)
+    selected_value = economic_objective(economics,mode)
+    selected_penalty = penalty
+    if mode != ANNUAL_OBJECTIVE:
+        if not bounds['objective_lower_bound']-1e-6 <= selected_value <= bounds['objective_upper_bound']+1e-6:
+            raise ValueError('Financial objective outside full-domain bounds')
+        selected_penalty = bounds['objective_penalty_scale']*rational_penalty(excess,bounds)
+    selected_score = selected_value-selected_penalty
+    if not np.isfinite([selected_value,selected_penalty,selected_score]).all():
+        raise ValueError('Nonfinite selected objective or penalty')
+    result.update(unpenalized_objective=selected_value, reliability_penalty=selected_penalty,
+        penalized_objective=selected_score, ego_objective_score=selected_score,
+        ego_minimization_target=-selected_score)
+    return result
 
 
 def invalid_objective(bounds, target):
     allowed = int(np.floor((1-target)*8760+1e-9))
     scale = bounds.get('penalty_scale_eur_per_year',bounds['value_scale_eur_per_year'])
+    if selected_objective(bounds) != ANNUAL_OBJECTIVE:
+        scale = bounds['objective_penalty_scale']
+        floor = bounds['objective_lower_bound'] - scale*rational_penalty(8760-allowed,bounds)
+        return float(floor-max(1.,.01*scale))
     floor = -bounds['cost_upper_bound_eur_per_year'] - scale*rational_penalty(8760-allowed,bounds)
     return float(floor-max(1.,.01*scale))
 
@@ -139,13 +246,14 @@ def invalid_objective(bounds, target):
 class hpp_model_simple_datacenter_joint_hpp_dc_sizing(PhysicalModel):
     """Twelve outer inputs; eleven unchanged HPP inputs and candidate IT capacity."""
     def __init__(self, sim_pars_fn, variables, baseline_log_dir=None, **kwargs):
-        super().__init__(sim_pars_fn=sim_pars_fn, **kwargs)
+        super().__init__(sim_pars_fn=sim_pars_fn, include_lifetime_finance=True, **kwargs)
         if set(variables) != set(VARIABLE_NAMES):
             raise ValueError('Expected eleven HPP inputs plus installed IT capacity')
         validate_it_variable(variables[IT_NAME])
         self.variables = variables
         self.list_vars = list(VARIABLE_NAMES)
-        self.list_out_vars += ['reliability_penalty [EUR/year]', SCORE_NAME]
+        self.objective = selected_objective(self.sim_pars)
+        self.list_out_vars += ['reliability_penalty ['+OBJECTIVES[self.objective][1]+']', OBJECTIVES[self.objective][0]]
         self.bounds = economic_bounds(self.sim_pars,variables)
         self.rejection_score = invalid_objective(self.bounds,self.sim_pars['reliability_target'])
         self.baseline_log_dir = None if baseline_log_dir is None else Path(baseline_log_dir)
@@ -155,6 +263,7 @@ class hpp_model_simple_datacenter_joint_hpp_dc_sizing(PhysicalModel):
         start = time.perf_counter()
         design = list(map(float,design))
         self.hourly = self.soc_mwh = self.metrics = self.economics = None
+        self.finance = None
         self.final_checks = self.solver_status = self.scoring = None
         self.candidate_error = None
         self.solve_observations = []
@@ -202,9 +311,14 @@ class hpp_model_simple_datacenter_joint_hpp_dc_sizing(PhysicalModel):
             self.scoring = objective_values(self.economics,self.final_checks['metrics']['LOLH'],
                                            self.sim_pars['reliability_target'],self.bounds)
             self.candidate_status = 'FEASIBLE' if self.final_checks['outer_feasible'] else 'BELOW_TARGET'
-            if not np.isfinite(outputs).all(): raise ValueError('Nonfinite model outputs')
-            self.outputs = np.append(outputs,[self.scoring['reliability_penalty_eur_per_year'],
-                                             self.scoring['penalized_annual_value']])
+            # Undefined IRR/payback are legitimate reporting outcomes, not
+            # physical failures. All other outputs and the EGO score stay finite.
+            optional = {'IRR_system', 'NPV_over_CAPEX_system', 'NPV_over_PV_CAPEX_system', 'payback_years', 'discounted_payback_years'}
+            for name, value in zip(self.list_out_vars, outputs):
+                if not np.isfinite(value) and not (name.split(' [')[0] in optional and np.isnan(value)):
+                    raise ValueError(f'Nonfinite model output: {name}')
+            self.outputs = np.append(outputs,[self.scoring['reliability_penalty'],
+                                             self.scoring['penalized_objective']])
             if path is not None:
                 archive = path.with_suffix('.npz')
                 temporary = archive.with_suffix('.tmp')
@@ -218,13 +332,19 @@ class hpp_model_simple_datacenter_joint_hpp_dc_sizing(PhysicalModel):
             if self.candidate_status=='PROVEN_INFEASIBLE': self.candidate_status='SOLVER_MODEL_INFEASIBLE'
             self.candidate_error = f'{type(exc).__name__}: {exc}'
             self.hourly = self.soc_mwh = self.metrics = self.economics = self.final_checks = self.scoring = None
+            self.finance = None
             self.outputs = np.zeros(len(self.list_out_vars)); self.outputs[-1] = self.rejection_score
         self.inputs = design
         assessment = reliability_assessment(self.final_checks,self.solver_status,
                                            self.sim_pars['epsilon_mw'],self.solve_observations)
         status, economics = self.solver_status or {}, self.economics or {}
+        saved_economics = None if self.economics is None else {
+            key: (float(value) if np.isfinite(value) else None)
+            for key, value in self.economics.items()
+        }
         record.update(status=self.candidate_status,error=self.candidate_error,design=design,
-            score=float(self.outputs[-1]),objective='maximize_penalized_annual_system_value',objective_units='EUR/year',
+            score=float(self.outputs[-1]),objective=selected_objective(self.sim_pars),
+            objective_units=OBJECTIVES[selected_objective(self.sim_pars)][1],
             joint_penalty_scaling=self.bounds['joint_penalty_scaling'],
             joint_penalty_gamma=self.bounds['joint_penalty_gamma'],
             reference_revenue_eur_per_year=self.bounds['reference_revenue_eur_per_year'],
@@ -236,7 +356,7 @@ class hpp_model_simple_datacenter_joint_hpp_dc_sizing(PhysicalModel):
             lcoe_hpp_eur_per_mwh=(economics['annualized_cost_hpp']/economics['served_facility_energy_mwh']
                                 if economics.get('served_facility_energy_mwh',0)>0 else None),
             solver=self.solve_observations,solver_status=self.solver_status,
-            validation=self.final_checks,metrics=self.metrics,economics=self.economics,
+            validation=self.final_checks,metrics=self.metrics,economics=saved_economics,
             physical_validation_passed=self.final_checks is not None,outer_feasible=self.candidate_status=='FEASIBLE',
             dispatch_path=str(archive) if archive else None,dispatch_sha256=digest,bounds=self.bounds,
             seconds=time.perf_counter()-start,completed_at=time.time(),
@@ -250,6 +370,6 @@ class hpp_model_simple_datacenter_joint_hpp_dc_sizing(PhysicalModel):
         print('Candidate:',self.candidate_status,self.candidate_error or '')
         if self.economics is not None:
             print('IT MW:',self.economics['it_capacity_mw'],'facility MW:',self.economics['facility_load_mw'])
-            print('Annual value / penalty / EGO objective [EUR/year]:',
-                  self.scoring['net_annual_value_system'],self.scoring['reliability_penalty_eur_per_year'],
-                  self.scoring['penalized_annual_value'])
+            print(selected_objective(self.sim_pars), 'value / penalty / EGO objective:',
+                  self.scoring['unpenalized_objective'],self.scoring['reliability_penalty'],
+                  self.scoring['penalized_objective'])

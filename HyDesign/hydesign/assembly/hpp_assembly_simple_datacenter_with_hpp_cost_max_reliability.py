@@ -10,6 +10,9 @@ from hydesign.costs.cost_simple_hpp_with_hpp_cost import (
 )
 from hydesign.ems.ems_simple_datacenter_comp_max_reliability import ems_simple_datacenter_comp_max_reliability as ems
 from hydesign.metrics_simple_datacenter import firm_load_metrics, validate_dispatch
+from hydesign.finance.finance_simple_datacenter import (
+    FINANCE_PARAMETERS, SCALAR_OUTPUTS, VECTOR_OUTPUTS, finance_simple_datacenter_comp,
+)
 from hydesign.pv.pv import pvp_comp as pvp
 from hydesign.weather.weather import ABL_comp as ABL
 from hydesign.wind.wind import genericWake_surrogate_comp as genericWake_surrogate
@@ -25,12 +28,13 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
     the outer adapter applies the requested reliability threshold.
     """
 
-    def __init__(self, sim_pars_fn, **kwargs):
+    def __init__(self, sim_pars_fn, include_lifetime_finance=False, **kwargs):
         hpp_base.__init__(self, sim_pars_fn=sim_pars_fn, **kwargs)
 
         N_time = self.N_time
         N_ws = self.N_ws
         sim_pars = self.sim_pars
+        self.include_lifetime_finance = include_lifetime_finance
         input_ts_fn = sim_pars["input_ts_fn"]
         self.datacenter_firm_revenue_per_mwh_it = sim_pars["datacenter_firm_revenue_per_mwh_it"]
         rate = self.datacenter_firm_revenue_per_mwh_it
@@ -127,6 +131,19 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
                 battery_replacement_cost_fraction=sim_pars["battery_replacement_cost_fraction"],
             )),
         ])
+        if include_lifetime_finance:
+            # Native promoted-name connections: raw asset costs flow directly
+            # into finance. The dispatch remains a single representative year.
+            comps.extend([
+                ("served_it_energy", om.ExecComp(
+                    "served_it_energy_mwh = sum(served_firm_it_mw) * time_step_hours",
+                    served_firm_it_mw={"val": np.zeros(N_time), "units": "MW"},
+                    time_step_hours={"val": 1.0, "units": "h"},
+                    served_it_energy_mwh={"units": "MW*h"},
+                )),
+                ("finance", finance_simple_datacenter_comp(
+                    **{name: sim_pars[name] for name in FINANCE_PARAMETERS})),
+            ])
         prob = self.get_prob(comps)
         # Native battery_cost omits energy units; EMS declares MW*h.
         prob.model.set_input_defaults("b_E", units="MW*h")
@@ -141,6 +158,8 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
         prob.set_val("battery_initial_soc", sim_pars["battery_initial_soc"])
         prob.set_val("facility_load_mw", sim_pars["facility_load_mw"])
         prob.set_val("pue", sim_pars["pue"])
+        if include_lifetime_finance:
+            prob.set_val("datacenter_firm_revenue_per_mwh_it", rate)
         self.prob = prob
 
         self.list_vars = [
@@ -165,6 +184,11 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
             for name in self.cost_output_names
         ] + ["net_annual_value [EUR/year]", "net_annual_value_dc_only [EUR/year]",
              "net_annual_value_system [EUR/year]"]
+        self.finance_output_names = tuple(name for name in SCALAR_OUTPUTS if name != "Revenue_dc") if include_lifetime_finance else ()
+        self.list_out_vars += [name + (" [years]" if "payback" in name else
+            " [-]" if name in ("IRR_system", "NPV_over_CAPEX_system", "NPV_over_PV_CAPEX_system") else
+            " [EUR/year]" if name == "OPEX_system" else " [EUR]")
+            for name in self.finance_output_names]
 
     def check_inputs(self, sim_pars):
         # Check before hpp_base can truncate/sample a nonannual weather file.
@@ -279,6 +303,7 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
         self.metrics = None
         self.outputs = None
         self.economics = None
+        self.finance = None
         prob.run_model()
 
         self.solver_status = prob.model.ems.ems_model.solver_status
@@ -315,8 +340,13 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
         )
         # dt = 1 hour for the validated 8760-hour profile. EUR/MWh_IT times
         # served MWh_IT/year gives EUR/year, comparable with annualized cost.
-        served_it_energy_mwh = float(self.hourly["served_firm_it_mw"].sum())
-        Revenue_dc = self.datacenter_firm_revenue_per_mwh_it * served_it_energy_mwh
+        if self.include_lifetime_finance:
+            served_it_energy_mwh = prob.get_val("served_it_energy_mwh").item()
+            Revenue_dc = prob.get_val("Revenue_dc").item()
+            self.finance = {name: prob.get_val(name).copy() for name in VECTOR_OUTPUTS}
+        else:
+            served_it_energy_mwh = float(self.hourly["served_firm_it_mw"].sum())
+            Revenue_dc = self.datacenter_firm_revenue_per_mwh_it * served_it_energy_mwh
         self.economics = {
             name: prob.get_val(name).item() for name in self.cost_output_names
         }
@@ -333,6 +363,7 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
         self.economics["net_annual_value_system"] = (
             self.economics["net_annual_value"] - self.economics["annualized_cost_hpp"]
         )
+        self.economics.update({name: prob.get_val(name).item() for name in self.finance_output_names})
         # EMS availability penalties are excluded from actual economic accounting.
         outputs = np.hstack([
             self.metrics["LOLH"], self.metrics["firm_reliability"], self.metrics["EENS"],
@@ -341,6 +372,7 @@ class hpp_model_simple_datacenter_with_hpp_cost_max_reliability(hpp_base):
             self.economics["net_annual_value"],
             self.economics["net_annual_value_dc_only"],
             self.economics["net_annual_value_system"],
+            *[self.economics[name] for name in self.finance_output_names],
         ])
         self.outputs = outputs
         return outputs
